@@ -1,0 +1,70 @@
+{
+  "academic_year": "2026-2027",
+  "grades": [
+    {
+      "grade_level": "Grade 5",
+      "subjects": [
+        {
+          "subject_name": "ICT",
+          "teacher_name": "Asmaa Elsegaey",
+          "teacher_email": "asmaa.elsegaey@school.ae",
+          "teams_name": "G5 - ICT"
+        },
+        {
+          "subject_name": "Mathematics",
+          "teacher_name": "Teacher Name",
+          "teacher_email": "math.teacher@school.ae",
+          "teams_name": "G5 - Mathematics"
+        }
+      ]
+    },
+    {
+      "grade_level": "Grade 6",
+      "subjects": [
+        {
+          "subject_name": "ICT",
+          "teacher_name": "Asmaa Elsegaey",
+          "teacher_email": "asmaa.elsegaey@school.ae",
+          "teams_name": "G6 - ICT"
+          import json
+import requests
+
+# Replace with your actual GitHub raw file URL
+GITHUB_CONFIG_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPOSITORY/main/classes_config.json"
+
+def fetch_lms_structure():
+    """Fetches the school structure configuration from GitHub."""
+    try:
+        response = requests.get(GITHUB_CONFIG_URL)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching configuration from GitHub: {e}")
+        return None
+
+def process_teams_structure(data):
+    """Processes and displays the separated grades, subjects, and assigned teachers."""
+    if not data:
+        print("No data available to process.")
+        return
+
+    print(f"=== LMS Structure for Academic Year: {data.get('academic_year')} ===\n")
+    
+    for grade in data.get("grades", []):
+        print(f"📁 Grade Level: {grade['grade_level']}")
+        print("-" * 40)
+        
+        for subject in grade.get("subjects", []):
+            print(f"   ├── Subject: {subject['subject_name']}")
+            print(f"   │   ├── Teacher: {subject['teacher_name']} ({subject['teacher_email']})")
+            print(f"   │   └── MS Teams Name: {subject['teams_name']}")
+        print()
+
+if __name__ == "__main__":
+    config_data = fetch_lms_structure()
+    process_teams_structure(config_data)
+        }
+      ]
+    }
+  ]
+}
