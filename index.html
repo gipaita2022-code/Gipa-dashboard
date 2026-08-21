@@ -1,31 +1,185 @@
-لوحة التحكم الشاملة (Canvas View)      => Canvas Dashboard
-جاري جلب كافة البيانات من Teams...     => Loading data from Teams...
-لوحة التحكم                            => Dashboard
-الصفوف (All)                           => Courses
-الواجبات                               => Assignments
-الصفوف حسب المراحل                     => Grades
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GIPA Canvas Dashboard</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0078d4;
+      --bg: #f5f5f5;
+      --card-bg: #ffffff;
+      --text: #242424;
+      --text-sub: #616161;
+      --border: #e0e0e0;
+    }
 
-جميع الصفوف والمواد (Classes)          => All Courses and Classes
-كافة الواجبات والمشاريع لكل المواد      => Assignments and Projects
-الصفوف حسب المراحل مع المواد والمعلمين  => Grades, Subjects and Teachers
-قائمة المهام القادمة (To-Do)           => Upcoming Tasks (To-Do)
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
 
-لا توجد مهام معلقة.                    => No pending tasks.
-لم يتم العثور على أي صفوف دراسية مسجلة. => No classes found.
-لا توجد واجبات معلقة في أي مادة!       => No pending assignments!
+    /* Sidebar */
+    .sidebar { width: 220px; background: #201f1e; color: #fff; display: flex; flex-direction: column; padding: 15px 10px; }
+    .brand { font-size: 1.1rem; font-weight: bold; color: #a6c8ff; margin-bottom: 20px; text-align: center; }
+    .lang-btn {
+      background: #0078d4; color: white; border: none; padding: 8px 12px;
+      border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .lang-btn:hover { background: #106ebe; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px; color: #c8c8c8; text-decoration: none; border-radius: 4px; margin-bottom: 5px; cursor: pointer; }
+    .nav-item.active, .nav-item:hover { background: #3b3a39; color: #fff; }
 
-الوصف:                                 => Description:
-القسم:                                 => Term:
-تاريخ التسليم:                         => Due Date:
+    /* Main Content */
+    .main { flex: 1; padding: 20px; overflow-y: auto; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .section-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 15px; }
 
-صف دراسي على Microsoft Teams           => Microsoft Teams Class
-الفصل الحالي                           => Current Term
-مادة دراسية                            => Course
+    /* Courses Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; margin-bottom: 25px; }
+    .card { background: var(--card-bg); border-radius: 6px; border: 1px solid var(--border); overflow: hidden; }
+    .card-banner { height: 80px; padding: 10px; color: white; font-weight: bold; }
+    .card-body { padding: 12px; }
+    .card-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 5px; }
+    .card-desc { font-size: 0.8rem; color: var(--text-sub); }
 
-تعذر الحصول على التوكن الإداري، استدعاء وضع الاختبار (Demo Mode).
-=> Unable to obtain authentication token. Switching to Demo Mode.
+    /* Assignments */
+    .list { background: var(--card-bg); border-radius: 6px; border: 1px solid var(--border); padding: 15px; }
+    .item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .item:last-child { border-bottom: none; }
+    .badge { background: #fde8e8; color: #c81e1e; font-size: 0.75rem; padding: 4px 8px; border-radius: 4px; font-weight: 600; }
+  </style>
+</head>
+<body>
 
-خطأ في جلب البيانات من Graph API:
-=> Error retrieving data from Microsoft Graph API:
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="brand">CANVAS TEAMS</div>
+    <button class="lang-btn" onclick="toggleLanguage()">
+      <i class="fa-solid font-globe"></i>
+      <span id="langLabel">English</span>
+    </button>
+    <div class="nav-item active"><i class="fa-solid fa-gauge"></i> <span data-key="dashboard">لوحة التحكم</span></div>
+    <div class="nav-item"><i class="fa-solid fa-book"></i> <span data-key="courses">الصفوف</span></div>
+    <div class="nav-item"><i class="fa-solid fa-list-check"></i> <span data-key="tasks">الواجبات</span></div>
+  </div>
 
-Class ID:                              => Course ID:
+  <!-- Main Area -->
+  <div class="main">
+    <div class="header">
+      <h2 id="mainTitle">لوحة التحكم الرئيسية</h2>
+    </div>
+
+    <!-- Courses -->
+    <div class="section-title" data-key="coursesTitle">المواد الدراسية</div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-banner" style="background: #0078d4;">IT 101</div>
+        <div class="card-body">
+          <div class="card-title" data-key="c1_title">برمجة وتطوير شبكات</div>
+          <div class="card-desc" data-key="c1_desc">الوصف: مادة البرمجيات والسكريبتات</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-banner" style="background: #2b88d8;">DB 202</div>
+        <div class="card-body">
+          <div class="card-title" data-key="c2_title">قواعد البيانات والمعلومات</div>
+          <div class="card-desc" data-key="c2_desc">الوصف: إدارة نظم SQL و NoSQL</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-banner" style="background: #107c41;">SEC 301</div>
+        <div class="card-body">
+          <div class="card-title" data-key="c3_title">الأمن السيبراني</div>
+          <div class="card-desc" data-key="c3_desc">الوصف: أساسيات الحماية والشبكات</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Assignments -->
+    <div class="section-title" data-key="assignTitle">كافة الواجبات والمشاريع</div>
+    <div class="list">
+      <div class="item">
+        <div>
+          <div style="font-weight: 600;" data-key="a1_title">مشروع السكريبت الأول</div>
+          <div style="font-size: 0.8rem; color: var(--text-sub);" data-key="a1_date">تاريخ التسليم: 2026/08/25</div>
+        </div>
+        <span class="badge" data-key="status">مطلوب تسليمه</span>
+      </div>
+      <div class="item">
+        <div>
+          <div style="font-weight: 600;" data-key="a2_title">واجب تصميم ERD Diagram</div>
+          <div style="font-size: 0.8rem; color: var(--text-sub);" data-key="a2_date">تاريخ التسليم: 2026/08/27</div>
+        </div>
+        <span class="badge" data-key="status">مطلوب تسليمه</span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const translations = {
+      ar: {
+        langLabel: "English",
+        dashboard: "لوحة التحكم",
+        courses: "الصفوف",
+        tasks: "الواجبات",
+        mainTitle: "لوحة التحكم الرئيسية",
+        coursesTitle: "المواد الدراسية",
+        assignTitle: "كافة الواجبات والمشاريع",
+        c1_title: "برمجة وتطوير شبكات (IT 101)",
+        c1_desc: "الوصف: مادة البرمجيات والسكريبتات",
+        c2_title: "قواعد البيانات (DB 202)",
+        c2_desc: "الوصف: إدارة نظم SQL و NoSQL",
+        c3_title: "الأمن السيبراني (SEC 301)",
+        c3_desc: "الوصف: أساسيات الحماية والشبكات",
+        a1_title: "مشروع السكريبت الأول (Scripting Project)",
+        a1_date: "تاريخ التسليم: 2026/08/25",
+        a2_title: "واجب تصميم ERD Diagram",
+        a2_date: "تاريخ التسليم: 2026/08/27",
+        status: "مطلوب تسليمه"
+      },
+      en: {
+        langLabel: "عربي",
+        dashboard: "Dashboard",
+        courses: "Courses",
+        tasks: "Assignments",
+        mainTitle: "Main Dashboard",
+        coursesTitle: "Enrolled Courses",
+        assignTitle: "Pending Assignments",
+        c1_title: "Network Programming (IT 101)",
+        c1_desc: "Desc: Software & Scripting Basics",
+        c2_title: "Database Systems (DB 202)",
+        c2_desc: "Desc: SQL & NoSQL Management",
+        c3_title: "Cyber Security (SEC 301)",
+        c3_desc: "Desc: Network Security Basics",
+        a1_title: "Scripting Project #1",
+        a1_date: "Due Date: 2026/08/25",
+        a2_title: "ERD Diagram Assignment",
+        a2_date: "Due Date: 2026/08/27",
+        status: "Action Required"
+      }
+    };
+
+    let currentLang = 'ar';
+
+    function toggleLanguage() {
+      currentLang = currentLang === 'ar' ? 'en' : 'ar';
+      
+      // Update HTML Dir & Lang
+      document.documentElement.lang = currentLang;
+      document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+
+      // Update Texts
+      document.querySelectorAll('[data-key]').forEach(elem => {
+        const key = elem.getAttribute('data-key');
+        if (translations[currentLang][key]) {
+          elem.innerText = translations[currentLang][key];
+        }
+      });
+
+      document.getElementById('mainTitle').innerText = translations[currentLang].mainTitle;
+      document.getElementById('langLabel').innerText = translations[currentLang].langLabel;
+    }
+  </script>
+</body>
+</html>
