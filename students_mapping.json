@@ -1,0 +1,19 @@
+{
+  "students": [
+    {
+      "email": "student.one@school.ae",
+      "grade": "Grade 5",
+      "subjects": [
+        { "name": "ICT", "teacher": "Asmaa Elsegaey" },
+        { "name": "Mathematics", "teacher": "Teacher Name" }
+      ]
+    },
+    {
+      "email": "student.two@school.ae",
+      "grade": "Grade 6",
+      "subjects": [
+        { "name": "ICT", "teacher": "Asmaa Elsegaey" }
+      ]
+    }
+  ]
+}
