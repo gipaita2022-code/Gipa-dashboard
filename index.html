@@ -1,90 +1,3009 @@
-<!DOCTYPE html>
+Created
+/app/frontend/public/manifest.json
+
+{
+  "short_name": "ASU Canvas",
+  "name": "American School UAE - Canvas LMS",
+  "description": "Learning management system for American School UAE",
+  "icons": [
+    { "src": "favicon.ico", "sizes": "64x64 32x32 24x24 16x16", "type": "image/x-icon" }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0F172A",
+  "background_color": "#F8FAFC"
+}
+
+
+Created
+/app/frontend/src/lib/api.js
+
+import axios from "axios";
+
+export const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+export const API = `${BACKEND_URL}/api`;
+
+export const api = axios.create({
+  baseURL: API,
+  withCredentials: true,
+});
+
+
+Created
+/app/frontend/public/index.html
+
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>School LMS Portal</title>
-    <!-- Microsoft Teams JavaScript SDK v2 -->
-    <script src="https://res.cdn.office.net/teams-js/2.22.0/js/microsoftTeams.min.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f5f7; padding: 20px; color: #333; }
-        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 15px; }
-        .subject-item { background: #f9f9f9; padding: 10px 15px; margin: 8px 0; border-left: 4px solid #6264A7; border-radius: 4px; }
-        .error { color: #d9534f; background: #f2dede; padding: 15px; border-radius: 4px; }
-    </style>
-</head>
-<body>
-
-    <div id="lms-container">
-        <h2>Loading your classroom portal...</h2>
-    </div>
-
-    <script>
-        // Replace with your GitHub Raw URL for the mapping file
-        const MAPPING_JSON_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPOSITORY/main/students_mapping.json";
-
-        async function initLMS() {
-            const container = document.getElementById('lms-container');
-            
-            try {
-                // 1. Initialize Microsoft Teams SDK
-                await microsoftTeams.app.initialize();
-                const context = await microsoftTeams.app.getContext();
-                
-                // Get logged-in student's email from Teams context
-                const userEmail = context.user.userPrincipalName || context.user.loginHint;
-
-                if (!userEmail) {
-                    container.innerHTML = `<div class="error">Unable to identify your user profile. Please open this app inside Microsoft Teams.</div>`;
-                    return;
-                }
-
-                // 2. Fetch student mapping from GitHub
-                const response = await fetch(MAPPING_JSON_URL);
-                if (!response.ok) throw new Error("Failed to load student database.");
-                
-                const data = await response.json();
-
-                // 3. Match student email
-                const currentStudent = data.students.find(
-                    s => s.email.toLowerCase() === userEmail.toLowerCase()
-                );
-
-                if (!currentStudent) {
-                    container.innerHTML = `<div class="error">Access restricted. No class profile found for email: <b>${userEmail}</b></div>`;
-                    return;
-                }
-
-                // 4. Render personalized grade and subjects view
-                let htmlOutput = `
-                    <div class="card">
-                        <h2>Welcome, ${currentStudent.email.split('@')[0]}!</h2>
-                        <p><strong>Grade Level:</strong> ${currentStudent.grade}</p>
-                    </div>
-                    <div class="card">
-                        <h3>Your Enrolled Subjects & Teachers</h3>
-                `;
-
-                currentStudent.subjects.forEach(sub => {
-                    htmlOutput += `
-                        <div class="subject-item">
-                            <strong>${sub.name}</strong><br>
-                            <small>Teacher: ${sub.teacher}</small>
-                        </div>
-                    `;
-                });
-
-                htmlOutput += `</div>`;
-                container.innerHTML = htmlOutput;
-
-            } catch (error) {
-                console.error("LMS Error:", error);
-                container.innerHTML = `<div class="error">An error occurred while loading your classes: ${error.message}</div>`;
-            }
-        }
-
-        // Run on page load
-        initLMS();
-    </script>
-</body>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta name="theme-color" content="#0F172A" />
+        <meta name="description" content="American School UAE - Canvas LMS" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="ASU Canvas" />
+        <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+        <title>American School UAE â€” Canvas</title>
+        <script>window.addEventListener("error",function(e){if(e.error instanceof DOMException&&e.error.name==="DataCloneError"&&e.message&&e.message.includes("PerformanceServerTiming")){e.stopImmediatePropagation();e.preventDefault()}},true);</script>
+        <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
+    </head>
+    <body>
+        <noscript>You need to enable JavaScript to run this app.</noscript>
+        <div id="root"></div>
+    </body>
 </html>
+
+
+
+Created
+/app/frontend/src/context/AuthContext.jsx
+
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { api } from "@/lib/api";
+
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const r = await api.get("/auth/me");
+      setUser(r.data);
+      return r.data;
+    } catch {
+      setUser(null);
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    // CRITICAL: If returning from OAuth callback, skip the /me check.
+    // AuthCallback will exchange the session_id and establish the session first.
+    if (window.location.hash?.includes("session_id=")) {
+      setLoading(false);
+      return;
+    }
+    refresh().finally(() => setLoading(false));
+  }, [refresh]);
+
+  const logout = async () => {
+    await api.post("/auth/logout");
+    setUser(null);
+    window.location.href = "/";
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, setUser, loading, refresh, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export const useAuth = () => useContext(AuthContext);
+
+
+
+
+Created
+/app/backend/server.py
+
+"""American School UAE - LMS backend."""
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
+from dotenv import load_dotenv
+from starlette.middleware.cors import CORSMiddleware
+from motor.motor_asyncio import AsyncIOMotorClient
+import os, uuid, io, logging, requests
+from pathlib import Path
+from pydantic import BaseModel, Field
+from typing import List, Optional, Literal, Any
+from datetime import datetime, timezone, timedelta
+
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / '.env')
+
+mongo_url = os.environ['MONGO_URL']
+client = AsyncIOMotorClient(mongo_url)
+db = client[os.environ['DB_NAME']]
+
+app = FastAPI(title="American School UAE LMS")
+api = APIRouter(prefix="/api")
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger("lms")
+
+# ---------- Models ----------
+Role = Literal["admin", "teacher", "student", "parent"]
+
+class UserOut(BaseModel):
+    user_id: str
+    email: str
+    name: str
+    picture: Optional[str] = None
+    role: Role
+    class_ids: List[str] = []
+    child_ids: List[str] = []
+
+class ClassModel(BaseModel):
+    class_id: str
+    name: str          # e.g., "Grade 5 - A"
+    grade: str         # KG1..G12
+    homeroom_teacher_id: Optional[str] = None
+
+class Lesson(BaseModel):
+    lesson_id: str = Field(default_factory=lambda: f"les_{uuid.uuid4().hex[:10]}")
+    title: str
+    body: str = ""
+    resources: List[dict] = []  # [{type:'link'|'file'|'video', url, name}]
+
+class Course(BaseModel):
+    course_id: str
+    title: str
+    subject: str
+    class_id: str
+    teacher_id: str
+    color: str = "#1E3A8A"
+    lessons: List[Lesson] = []
+
+class QuizQuestion(BaseModel):
+    q_id: str = Field(default_factory=lambda: f"q_{uuid.uuid4().hex[:8]}")
+    type: Literal["mcq", "tf", "short"]
+    prompt: str
+    options: List[str] = []
+    answer: str   # for mcq: option text; tf: "true"/"false"; short: expected keyword
+    points: int = 1
+
+# ---------- Helpers ----------
+def now(): return datetime.now(timezone.utc)
+
+def uid(prefix: str) -> str: return f"{prefix}_{uuid.uuid4().hex[:12]}"
+
+async def get_session_user(request: Request) -> dict:
+    token = request.cookies.get("session_token")
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Bearer "): token = auth[7:]
+    if not token:
+        raise HTTPException(401, "Not authenticated")
+    sess = await db.sessions.find_one({"session_token": token}, {"_id": 0})
+    if not sess:
+        raise HTTPException(401, "Invalid session")
+    exp = sess["expires_at"]
+    if isinstance(exp, str): exp = datetime.fromisoformat(exp)
+    if exp.tzinfo is None: exp = exp.replace(tzinfo=timezone.utc)
+    if exp < now(): raise HTTPException(401, "Session expired")
+    user = await db.users.find_one({"user_id": sess["user_id"]}, {"_id": 0})
+    if not user: raise HTTPException(401, "User missing")
+    # View-as impersonation for admin demo
+    view_as = sess.get("view_as_user_id")
+    if view_as and user["role"] == "admin":
+        vu = await db.users.find_one({"user_id": view_as}, {"_id": 0})
+        if vu:
+            vu["_actual_admin_id"] = user["user_id"]
+            return vu
+    return user
+
+async def require_role(user: dict, roles: List[str]):
+    if user["role"] not in roles:
+        raise HTTPException(403, f"Requires role: {roles}")
+
+# ---------- Auth ----------
+@api.post("/auth/session")
+async def auth_session(payload: dict, response: Response):
+    # REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    session_id = payload.get("session_id")
+    if not session_id: raise HTTPException(400, "session_id required")
+    r = requests.get(
+        "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+        headers={"X-Session-ID": session_id}, timeout=15,
+    )
+    if r.status_code != 200:
+        raise HTTPException(401, "OAuth exchange failed")
+    data = r.json()
+    email = data["email"].lower()
+    # Match to existing seeded user by email, or create new admin (owner) / self-serve as student
+    existing = await db.users.find_one({"email": email}, {"_id": 0})
+    if existing:
+        user_id = existing["user_id"]
+        await db.users.update_one({"user_id": user_id}, {"$set": {"name": data.get("name") or existing["name"], "picture": data.get("picture")}})
+    else:
+        # First-ever login: if email matches owner, make admin; else student in default class
+        owner = (email == "asmaa.moh8689@gmail.com")
+        user_id = uid("user")
+        default_class = await db.classes.find_one({"class_id": "cls_g5a"}, {"_id": 0})
+        await db.users.insert_one({
+            "user_id": user_id, "email": email, "name": data.get("name") or email.split("@")[0],
+            "picture": data.get("picture"), "role": "admin" if owner else "student",
+            "class_ids": [] if owner else ([default_class["class_id"]] if default_class else []),
+            "child_ids": [], "created_at": now().isoformat(),
+        })
+    session_token = data["session_token"]
+    await db.sessions.insert_one({
+        "session_token": session_token, "user_id": user_id,
+        "expires_at": (now() + timedelta(days=7)).isoformat(), "created_at": now().isoformat(),
+    })
+    response.set_cookie("session_token", session_token, httponly=True, secure=True,
+                        samesite="none", max_age=7*24*3600, path="/")
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    return {"user": user, "session_token": session_token}
+
+@api.get("/auth/me", response_model=UserOut)
+async def auth_me(user: dict = Depends(get_session_user)):
+    return UserOut(**user)
+
+@api.post("/auth/logout")
+async def logout(request: Request, response: Response):
+    token = request.cookies.get("session_token")
+    if token: await db.sessions.delete_many({"session_token": token})
+    response.delete_cookie("session_token", path="/")
+    return {"ok": True}
+
+@api.post("/auth/view-as")
+async def view_as(payload: dict, request: Request, user: dict = Depends(get_session_user)):
+    # Admin can preview any user's dashboard
+    actual_id = user.get("_actual_admin_id") or user["user_id"]
+    actual = await db.users.find_one({"user_id": actual_id}, {"_id": 0})
+    if not actual or actual["role"] != "admin":
+        raise HTTPException(403, "Admin only")
+    target_id = payload.get("user_id")
+    token = request.cookies.get("session_token")
+    await db.sessions.update_one({"session_token": token}, {"$set": {"view_as_user_id": target_id}})
+    return {"ok": True, "view_as": target_id}
+
+# ---------- Classes / Users ----------
+@api.get("/classes")
+async def list_classes(user: dict = Depends(get_session_user)):
+    q = {} if user["role"] == "admin" else {"class_id": {"$in": user.get("class_ids", [])}}
+    if user["role"] == "teacher":
+        q = {"homeroom_teacher_id": user["user_id"]}
+        # OR include courses' classes for this teacher
+        teacher_courses = await db.courses.find({"teacher_id": user["user_id"]}, {"_id": 0}).to_list(None)
+        ids = list({c["class_id"] for c in teacher_courses})
+        q = {"class_id": {"$in": ids}} if ids else {"class_id": "__none__"}
+    if user["role"] == "parent":
+        children = await db.users.find({"user_id": {"$in": user.get("child_ids", [])}}, {"_id": 0}).to_list(None)
+        ids = list({cid for ch in children for cid in ch.get("class_ids", [])})
+        q = {"class_id": {"$in": ids}}
+    return await db.classes.find(q, {"_id": 0}).to_list(None)
+
+@api.get("/users")
+async def list_users(role: Optional[str] = None, class_id: Optional[str] = None,
+                     user: dict = Depends(get_session_user)):
+    q = {}
+    if role: q["role"] = role
+    if class_id: q["class_ids"] = class_id
+    if user["role"] not in ("admin", "teacher"):
+        raise HTTPException(403, "Not allowed")
+    return await db.users.find(q, {"_id": 0}).to_list(None)
+
+# ---------- Courses ----------
+@api.get("/courses")
+async def list_courses(user: dict = Depends(get_session_user)):
+    if user["role"] == "admin":
+        q: dict = {}
+    elif user["role"] == "teacher":
+        q = {"teacher_id": user["user_id"]}
+    elif user["role"] == "student":
+        q = {"class_id": {"$in": user.get("class_ids", [])}}
+    else:  # parent
+        children = await db.users.find({"user_id": {"$in": user.get("child_ids", [])}}, {"_id": 0}).to_list(None)
+        ids = list({cid for ch in children for cid in ch.get("class_ids", [])})
+        q = {"class_id": {"$in": ids}}
+    return await db.courses.find(q, {"_id": 0}).to_list(None)
+
+@api.get("/courses/{course_id}")
+async def get_course(course_id: str, user: dict = Depends(get_session_user)):
+    c = await db.courses.find_one({"course_id": course_id}, {"_id": 0})
+    if not c: raise HTTPException(404, "Course not found")
+    return c
+
+@api.post("/courses")
+async def create_course(payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    course = {
+        "course_id": uid("crs"), "title": payload["title"], "subject": payload.get("subject", "General"),
+        "class_id": payload["class_id"], "teacher_id": payload.get("teacher_id", user["user_id"]),
+        "color": payload.get("color", "#1E3A8A"), "lessons": [], "created_at": now().isoformat(),
+    }
+    await db.courses.insert_one(course)
+    course.pop("_id", None)
+    return course
+
+@api.post("/courses/{course_id}/lessons")
+async def add_lesson(course_id: str, payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    lesson = Lesson(**payload).model_dump()
+    await db.courses.update_one({"course_id": course_id}, {"$push": {"lessons": lesson}})
+    return lesson
+
+# ---------- Assignments ----------
+@api.get("/assignments")
+async def list_assignments(course_id: Optional[str] = None, user: dict = Depends(get_session_user)):
+    q: dict = {}
+    if course_id: q["course_id"] = course_id
+    if user["role"] == "student":
+        courses = await db.courses.find({"class_id": {"$in": user.get("class_ids", [])}}, {"_id": 0}).to_list(None)
+        q["course_id"] = {"$in": [c["course_id"] for c in courses]}
+    elif user["role"] == "teacher":
+        courses = await db.courses.find({"teacher_id": user["user_id"]}, {"_id": 0}).to_list(None)
+        q["course_id"] = {"$in": [c["course_id"] for c in courses]}
+    elif user["role"] == "parent":
+        children = await db.users.find({"user_id": {"$in": user.get("child_ids", [])}}, {"_id": 0}).to_list(None)
+        class_ids = list({cid for ch in children for cid in ch.get("class_ids", [])})
+        courses = await db.courses.find({"class_id": {"$in": class_ids}}, {"_id": 0}).to_list(None)
+        q["course_id"] = {"$in": [c["course_id"] for c in courses]}
+    items = await db.assignments.find(q, {"_id": 0}).sort("due_at", 1).to_list(None)
+    # Attach submission for student view
+    if user["role"] == "student":
+        subs = await db.submissions.find({"student_id": user["user_id"]}, {"_id": 0}).to_list(None)
+        by_a = {s["assignment_id"]: s for s in subs}
+        for a in items: a["my_submission"] = by_a.get(a["assignment_id"])
+    return items
+
+@api.post("/assignments")
+async def create_assignment(payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    a = {
+        "assignment_id": uid("asg"), "course_id": payload["course_id"], "title": payload["title"],
+        "description": payload.get("description", ""), "due_at": payload["due_at"],
+        "max_points": int(payload.get("max_points", 100)), "created_at": now().isoformat(),
+    }
+    await db.assignments.insert_one(a)
+    a.pop("_id", None); return a
+
+@api.post("/assignments/{aid}/submit")
+async def submit_assignment(aid: str, payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["student"])
+    sub = {
+        "submission_id": uid("sub"), "assignment_id": aid, "student_id": user["user_id"],
+        "text": payload.get("text", ""), "file_url": payload.get("file_url"),
+        "submitted_at": now().isoformat(), "grade": None, "feedback": None,
+    }
+    await db.submissions.update_one(
+        {"assignment_id": aid, "student_id": user["user_id"]},
+        {"$set": sub}, upsert=True,
+    )
+    return sub
+
+@api.get("/assignments/{aid}/submissions")
+async def list_subs(aid: str, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    subs = await db.submissions.find({"assignment_id": aid}, {"_id": 0}).to_list(None)
+    # attach student info
+    student_ids = [s["student_id"] for s in subs]
+    students = {u["user_id"]: u for u in await db.users.find({"user_id": {"$in": student_ids}}, {"_id": 0}).to_list(None)}
+    for s in subs: s["student"] = students.get(s["student_id"])
+    return subs
+
+@api.post("/submissions/{sid}/grade")
+async def grade_sub(sid: str, payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    await db.submissions.update_one({"submission_id": sid}, {"$set": {
+        "grade": float(payload["grade"]), "feedback": payload.get("feedback", ""),
+        "graded_at": now().isoformat(), "graded_by": user["user_id"],
+    }})
+    return {"ok": True}
+
+# ---------- Quizzes ----------
+@api.get("/quizzes")
+async def list_quizzes(course_id: Optional[str] = None, user: dict = Depends(get_session_user)):
+    q: dict = {}
+    if course_id: q["course_id"] = course_id
+    if user["role"] == "student":
+        courses = await db.courses.find({"class_id": {"$in": user.get("class_ids", [])}}, {"_id": 0}).to_list(None)
+        q["course_id"] = {"$in": [c["course_id"] for c in courses]}
+    quizzes = await db.quizzes.find(q, {"_id": 0}).to_list(None)
+    if user["role"] == "student":
+        attempts = await db.quiz_attempts.find({"student_id": user["user_id"]}, {"_id": 0}).to_list(None)
+        by_q = {a["quiz_id"]: a for a in attempts}
+        for qz in quizzes:
+            qz["my_attempt"] = by_q.get(qz["quiz_id"])
+            # hide answers from student
+            for qq in qz["questions"]: qq.pop("answer", None)
+    return quizzes
+
+@api.post("/quizzes")
+async def create_quiz(payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    qz = {
+        "quiz_id": uid("qz"), "course_id": payload["course_id"], "title": payload["title"],
+        "questions": [QuizQuestion(**q).model_dump() for q in payload["questions"]],
+        "created_at": now().isoformat(),
+    }
+    await db.quizzes.insert_one(qz); qz.pop("_id", None); return qz
+
+@api.post("/quizzes/{qid}/attempt")
+async def attempt_quiz(qid: str, payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["student"])
+    qz = await db.quizzes.find_one({"quiz_id": qid}, {"_id": 0})
+    if not qz: raise HTTPException(404, "Quiz not found")
+    answers = payload.get("answers", {})  # {q_id: str}
+    score = 0; max_pts = 0; details = []
+    for q in qz["questions"]:
+        max_pts += q["points"]
+        given = str(answers.get(q["q_id"], "")).strip().lower()
+        correct = str(q["answer"]).strip().lower()
+        is_correct = (given == correct) if q["type"] in ("mcq", "tf") else (correct in given and len(given) > 0)
+        if is_correct: score += q["points"]
+        details.append({"q_id": q["q_id"], "given": given, "correct": q["answer"], "is_correct": is_correct})
+    attempt = {
+        "attempt_id": uid("att"), "quiz_id": qid, "student_id": user["user_id"],
+        "score": score, "max_points": max_pts, "details": details, "submitted_at": now().isoformat(),
+    }
+    await db.quiz_attempts.update_one({"quiz_id": qid, "student_id": user["user_id"]},
+                                       {"$set": attempt}, upsert=True)
+    return attempt
+
+# ---------- Gradebook ----------
+@api.get("/gradebook")
+async def gradebook(course_id: Optional[str] = None, user: dict = Depends(get_session_user)):
+    # Returns rows per student with assignment + quiz grades
+    if user["role"] == "student":
+        student_ids = [user["user_id"]]
+        class_ids = user.get("class_ids", [])
+    elif user["role"] == "parent":
+        student_ids = user.get("child_ids", [])
+        kids = await db.users.find({"user_id": {"$in": student_ids}}, {"_id": 0}).to_list(None)
+        class_ids = list({cid for ch in kids for cid in ch.get("class_ids", [])})
+    elif user["role"] == "teacher":
+        courses = await db.courses.find({"teacher_id": user["user_id"]}, {"_id": 0}).to_list(None)
+        class_ids = list({c["class_id"] for c in courses})
+        students = await db.users.find({"role": "student", "class_ids": {"$in": class_ids}}, {"_id": 0}).to_list(None)
+        student_ids = [s["user_id"] for s in students]
+    else:  # admin
+        students = await db.users.find({"role": "student"}, {"_id": 0}).to_list(None)
+        student_ids = [s["user_id"] for s in students]
+        class_ids = list({cid for s in students for cid in s.get("class_ids", [])})
+
+    course_q: dict = {"class_id": {"$in": class_ids}}
+    if course_id: course_q["course_id"] = course_id
+    courses = await db.courses.find(course_q, {"_id": 0}).to_list(None)
+    course_ids = [c["course_id"] for c in courses]
+    assignments = await db.assignments.find({"course_id": {"$in": course_ids}}, {"_id": 0}).to_list(None)
+    submissions = await db.submissions.find({"student_id": {"$in": student_ids}}, {"_id": 0}).to_list(None)
+    quizzes = await db.quizzes.find({"course_id": {"$in": course_ids}}, {"_id": 0}).to_list(None)
+    attempts = await db.quiz_attempts.find({"student_id": {"$in": student_ids}}, {"_id": 0}).to_list(None)
+    students = await db.users.find({"user_id": {"$in": student_ids}}, {"_id": 0}).to_list(None)
+
+    return {
+        "students": students, "courses": courses, "assignments": assignments,
+        "submissions": submissions, "quizzes": quizzes, "attempts": attempts,
+    }
+
+# ---------- Attendance ----------
+@api.get("/attendance")
+async def get_attendance(class_id: Optional[str] = None, date: Optional[str] = None,
+                         user: dict = Depends(get_session_user)):
+    q: dict = {}
+    if class_id: q["class_id"] = class_id
+    if date: q["date"] = date
+    if user["role"] == "student": q["student_id"] = user["user_id"]
+    if user["role"] == "parent": q["student_id"] = {"$in": user.get("child_ids", [])}
+    return await db.attendance.find(q, {"_id": 0}).sort("date", -1).to_list(None)
+
+@api.post("/attendance")
+async def mark_attendance(payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    # payload: {class_id, date, records: [{student_id, status}]}
+    for r in payload["records"]:
+        await db.attendance.update_one(
+            {"class_id": payload["class_id"], "date": payload["date"], "student_id": r["student_id"]},
+            {"$set": {"class_id": payload["class_id"], "date": payload["date"],
+                      "student_id": r["student_id"], "status": r["status"],
+                      "marked_by": user["user_id"], "marked_at": now().isoformat()}},
+            upsert=True,
+        )
+    return {"ok": True, "count": len(payload["records"])}
+
+# ---------- Announcements ----------
+@api.get("/announcements")
+async def list_announcements(user: dict = Depends(get_session_user)):
+    if user["role"] == "admin":
+        q: dict = {}
+    elif user["role"] == "teacher":
+        q = {"$or": [{"scope": "school"}, {"class_id": {"$in": user.get("class_ids_teach", []) or []}}, {"author_id": user["user_id"]}]}
+        # simpler: all school + created ones
+        q = {}
+    elif user["role"] == "student":
+        q = {"$or": [{"scope": "school"}, {"class_id": {"$in": user.get("class_ids", [])}}]}
+    else:
+        children = await db.users.find({"user_id": {"$in": user.get("child_ids", [])}}, {"_id": 0}).to_list(None)
+        ids = list({cid for ch in children for cid in ch.get("class_ids", [])})
+        q = {"$or": [{"scope": "school"}, {"class_id": {"$in": ids}}]}
+    return await db.announcements.find(q, {"_id": 0}).sort("created_at", -1).to_list(None)
+
+@api.post("/announcements")
+async def create_announcement(payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["teacher", "admin"])
+    a = {
+        "announcement_id": uid("ann"), "title": payload["title"], "body": payload.get("body", ""),
+        "scope": payload.get("scope", "class"), "class_id": payload.get("class_id"),
+        "author_id": user["user_id"], "author_name": user["name"],
+        "pinned": bool(payload.get("pinned", False)), "created_at": now().isoformat(),
+    }
+    await db.announcements.insert_one(a); a.pop("_id", None); return a
+
+# ---------- Admin ----------
+@api.post("/admin/users")
+async def create_user(payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["admin"])
+    u = {
+        "user_id": uid("user"), "email": payload["email"].lower(),
+        "name": payload["name"], "picture": None, "role": payload["role"],
+        "class_ids": payload.get("class_ids", []), "child_ids": payload.get("child_ids", []),
+        "created_at": now().isoformat(),
+    }
+    if await db.users.find_one({"email": u["email"]}):
+        raise HTTPException(400, "Email already exists")
+    await db.users.insert_one(u); u.pop("_id", None); return u
+
+@api.post("/admin/classes")
+async def create_class(payload: dict, user: dict = Depends(get_session_user)):
+    await require_role(user, ["admin"])
+    c = {"class_id": uid("cls"), "name": payload["name"], "grade": payload["grade"],
+         "homeroom_teacher_id": payload.get("homeroom_teacher_id")}
+    await db.classes.insert_one(c); c.pop("_id", None); return c
+
+@api.get("/admin/stats")
+async def admin_stats(user: dict = Depends(get_session_user)):
+    await require_role(user, ["admin"])
+    return {
+        "users": await db.users.count_documents({}),
+        "students": await db.users.count_documents({"role": "student"}),
+        "teachers": await db.users.count_documents({"role": "teacher"}),
+        "parents": await db.users.count_documents({"role": "parent"}),
+        "classes": await db.classes.count_documents({}),
+        "courses": await db.courses.count_documents({}),
+        "assignments": await db.assignments.count_documents({}),
+    }
+
+# ---------- Report Card PDF ----------
+@api.get("/report-card/{student_id}")
+async def report_card(student_id: str, user: dict = Depends(get_session_user)):
+    if user["role"] == "student" and student_id != user["user_id"]:
+        raise HTTPException(403, "Cannot access other student's report")
+    if user["role"] == "parent" and student_id not in user.get("child_ids", []):
+        raise HTTPException(403, "Not your child")
+    student = await db.users.find_one({"user_id": student_id}, {"_id": 0})
+    if not student: raise HTTPException(404, "Student not found")
+    cls = await db.classes.find_one({"class_id": (student.get("class_ids") or ["_"])[0]}, {"_id": 0})
+    courses = await db.courses.find({"class_id": (student.get("class_ids") or ["_"])[0]}, {"_id": 0}).to_list(None)
+    subs = await db.submissions.find({"student_id": student_id}, {"_id": 0}).to_list(None)
+    atts = await db.quiz_attempts.find({"student_id": student_id}, {"_id": 0}).to_list(None)
+    assignments = await db.assignments.find({"course_id": {"$in": [c["course_id"] for c in courses]}}, {"_id": 0}).to_list(None)
+    quizzes = await db.quizzes.find({"course_id": {"$in": [c["course_id"] for c in courses]}}, {"_id": 0}).to_list(None)
+
+    # Aggregate per course
+    rows = []; total_pct = 0; count = 0
+    for c in courses:
+        c_asgs = [a for a in assignments if a["course_id"] == c["course_id"]]
+        c_qzs = [q for q in quizzes if q["course_id"] == c["course_id"]]
+        earned = 0; possible = 0
+        for a in c_asgs:
+            s = next((x for x in subs if x["assignment_id"] == a["assignment_id"]), None)
+            if s and s.get("grade") is not None:
+                earned += s["grade"]; possible += a["max_points"]
+        for qz in c_qzs:
+            at = next((x for x in atts if x["quiz_id"] == qz["quiz_id"]), None)
+            if at:
+                earned += at["score"]; possible += at["max_points"]
+        pct = round((earned / possible) * 100, 1) if possible > 0 else 0
+        letter = grade_letter(pct)
+        rows.append([c["title"], c["subject"], f"{earned:.0f}/{possible:.0f}", f"{pct}%", letter])
+        if possible > 0: total_pct += pct; count += 1
+
+    overall = round(total_pct / count, 1) if count else 0
+
+    # PDF
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=2*cm, rightMargin=2*cm, topMargin=2*cm, bottomMargin=2*cm)
+    styles = getSampleStyleSheet()
+    h1 = ParagraphStyle("h1", parent=styles["Heading1"], textColor=colors.HexColor("#0F172A"), fontSize=22, spaceAfter=6)
+    sub = ParagraphStyle("sub", parent=styles["Normal"], textColor=colors.HexColor("#D97706"), fontSize=11, spaceAfter=16)
+    label = ParagraphStyle("lbl", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#64748B"))
+    elems: List[Any] = []
+    elems.append(Paragraph("American School UAE", h1))
+    elems.append(Paragraph("Official Academic Report Card", sub))
+    info_data = [
+        ["Student", student["name"], "Class", cls["name"] if cls else "-"],
+        ["Email", student["email"], "Grade", cls["grade"] if cls else "-"],
+        ["Issued", now().strftime("%B %d, %Y"), "Overall", f"{overall}% ({grade_letter(overall)})"],
+    ]
+    t = Table(info_data, colWidths=[3*cm, 6*cm, 3*cm, 5*cm])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (0,-1), colors.HexColor("#F1F5F9")),
+        ("BACKGROUND", (2,0), (2,-1), colors.HexColor("#F1F5F9")),
+        ("TEXTCOLOR", (0,0), (-1,-1), colors.HexColor("#0F172A")),
+        ("FONTNAME", (0,0), (-1,-1), "Helvetica"),
+        ("FONTNAME", (0,0), (0,-1), "Helvetica-Bold"),
+        ("FONTNAME", (2,0), (2,-1), "Helvetica-Bold"),
+        ("BOX", (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
+        ("INNERGRID", (0,0), (-1,-1), 0.25, colors.HexColor("#E2E8F0")),
+        ("VALIGN", (0,0), (-1,-1), "MIDDLE"), ("LEFTPADDING", (0,0), (-1,-1), 8),
+        ("RIGHTPADDING", (0,0), (-1,-1), 8), ("TOPPADDING", (0,0), (-1,-1), 8),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+    ]))
+    elems.append(t); elems.append(Spacer(1, 14))
+    elems.append(Paragraph("SUBJECT PERFORMANCE", label)); elems.append(Spacer(1, 6))
+    header = [["Course", "Subject", "Score", "Percentage", "Grade"]]
+    grid = Table(header + rows, colWidths=[5*cm, 4*cm, 3*cm, 2.5*cm, 2.5*cm])
+    grid.setStyle(TableStyle([
+        ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#0F172A")),
+        ("TEXTCOLOR", (0,0), (-1,0), colors.white),
+        ("FONTNAME", (0,0), (-1,0), "Helvetica-Bold"),
+        ("FONTNAME", (0,1), (-1,-1), "Helvetica"),
+        ("BOX", (0,0), (-1,-1), 0.5, colors.HexColor("#CBD5E1")),
+        ("INNERGRID", (0,0), (-1,-1), 0.25, colors.HexColor("#E2E8F0")),
+        ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F8FAFC")]),
+        ("TOPPADDING", (0,0), (-1,-1), 8), ("BOTTOMPADDING", (0,0), (-1,-1), 8),
+        ("LEFTPADDING", (0,0), (-1,-1), 8), ("RIGHTPADDING", (0,0), (-1,-1), 8),
+    ]))
+    elems.append(grid); elems.append(Spacer(1, 24))
+    elems.append(Paragraph("Teacher Remarks", label))
+    elems.append(Paragraph(
+        f"{student['name']} continues to demonstrate steady academic progress. "
+        f"Consistent effort and participation are noted. Please refer to individual course "
+        f"feedback in the LMS for detailed observations.",
+        styles["Normal"]
+    ))
+    elems.append(Spacer(1, 36))
+    sign = Table([["", ""], ["Homeroom Teacher", "Principal"]], colWidths=[7*cm, 7*cm])
+    sign.setStyle(TableStyle([("LINEABOVE", (0,1), (-1,1), 0.5, colors.HexColor("#0F172A")),
+                              ("FONTNAME", (0,1), (-1,1), "Helvetica-Bold"),
+                              ("ALIGN", (0,0), (-1,-1), "CENTER")]))
+    elems.append(sign)
+    doc.build(elems); buf.seek(0)
+    filename = f"report_card_{student['name'].replace(' ', '_')}.pdf"
+    return StreamingResponse(buf, media_type="application/pdf",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+def grade_letter(p: float) -> str:
+    if p >= 90: return "A"
+    if p >= 80: return "B"
+    if p >= 70: return "C"
+    if p >= 60: return "D"
+    if p > 0: return "F"
+    return "-"
+
+# ---------- File Upload (simple base64 to Mongo for demo) ----------
+@api.post("/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_session_user)):
+    import base64
+    data = await file.read()
+    fid = uid("file")
+    await db.files.insert_one({
+        "file_id": fid, "filename": file.filename, "content_type": file.content_type,
+        "data": base64.b64encode(data).decode(), "size": len(data),
+        "uploaded_by": user["user_id"], "uploaded_at": now().isoformat(),
+    })
+    return {"file_id": fid, "url": f"/api/files/{fid}", "filename": file.filename, "size": len(data)}
+
+@api.get("/files/{fid}")
+async def get_file(fid: str):
+    import base64
+    f = await db.files.find_one({"file_id": fid}, {"_id": 0})
+    if not f: raise HTTPException(404, "Not found")
+    return StreamingResponse(io.BytesIO(base64.b64decode(f["data"])),
+                             media_type=f["content_type"] or "application/octet-stream",
+                             headers={"Content-Disposition": f'inline; filename="{f["filename"]}"'})
+
+# ---------- Root ----------
+@api.get("/")
+async def root(): return {"app": "American School UAE LMS", "status": "ok"}
+
+app.include_router(api)
+app.add_middleware(
+    CORSMiddleware, allow_credentials=True,
+    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_methods=["*"], allow_headers=["*"],
+)
+
+@app.on_event("startup")
+async def _startup():
+    from seed import seed_if_empty
+    await seed_if_empty(db)
+
+@app.on_event("shutdown")
+async def shutdown(): client.close()
+
+
+
+
+Created
+/app/backend/seed.py
+
+"""Seed a demo class with users, courses, assignments, quizzes, announcements."""
+from datetime import datetime, timezone, timedelta
+
+OWNER_EMAIL = "asmaa.moh8689@gmail.com"
+
+def iso(dt): return dt.isoformat()
+def now(): return datetime.now(timezone.utc)
+
+async def seed_if_empty(db):
+    if await db.users.count_documents({}) > 0:
+        # Ensure owner exists as admin
+        await db.users.update_one(
+            {"email": OWNER_EMAIL},
+            {"$setOnInsert": {
+                "user_id": "user_owner_admin", "email": OWNER_EMAIL,
+                "name": "Asmaa Mohamed", "picture": None, "role": "admin",
+                "class_ids": [], "child_ids": [], "created_at": iso(now()),
+            }}, upsert=True,
+        )
+        return
+
+    # Classes
+    classes = [
+        {"class_id": "cls_g5a", "name": "Grade 5 - Section A", "grade": "G5", "homeroom_teacher_id": "user_tch_thompson"},
+        {"class_id": "cls_g8b", "name": "Grade 8 - Section B", "grade": "G8", "homeroom_teacher_id": "user_tch_thompson"},
+        {"class_id": "cls_kg1", "name": "KG1 - Sunshine", "grade": "KG1", "homeroom_teacher_id": None},
+    ]
+    await db.classes.insert_many(classes)
+
+    # Users
+    users = [
+        {"user_id": "user_owner_admin", "email": OWNER_EMAIL, "name": "Asmaa Mohamed",
+         "picture": None, "role": "admin", "class_ids": [], "child_ids": [], "created_at": iso(now())},
+
+        {"user_id": "user_tch_thompson", "email": "sarah.thompson@americanschooluae.ae",
+         "name": "Sarah Thompson", "picture": None, "role": "teacher",
+         "class_ids": ["cls_g5a", "cls_g8b"], "child_ids": [], "created_at": iso(now())},
+
+        {"user_id": "user_tch_ahmed", "email": "omar.ahmed@americanschooluae.ae",
+         "name": "Omar Ahmed", "picture": None, "role": "teacher",
+         "class_ids": ["cls_g5a"], "child_ids": [], "created_at": iso(now())},
+
+        {"user_id": "user_std_liam", "email": "liam.hassan@americanschooluae.ae",
+         "name": "Liam Hassan", "picture": None, "role": "student",
+         "class_ids": ["cls_g5a"], "child_ids": [], "created_at": iso(now())},
+
+        {"user_id": "user_std_aisha", "email": "aisha.khan@americanschooluae.ae",
+         "name": "Aisha Khan", "picture": None, "role": "student",
+         "class_ids": ["cls_g5a"], "child_ids": [], "created_at": iso(now())},
+
+        {"user_id": "user_std_noah", "email": "noah.reyes@americanschooluae.ae",
+         "name": "Noah Reyes", "picture": None, "role": "student",
+         "class_ids": ["cls_g5a"], "child_ids": [], "created_at": iso(now())},
+
+        {"user_id": "user_par_hassan", "email": "parent.hassan@americanschooluae.ae",
+         "name": "Fatima Hassan", "picture": None, "role": "parent",
+         "class_ids": [], "child_ids": ["user_std_liam"], "created_at": iso(now())},
+    ]
+    await db.users.insert_many(users)
+
+    # Courses
+    courses = [
+        {"course_id": "crs_math_g5", "title": "Mathematics 5", "subject": "Mathematics",
+         "class_id": "cls_g5a", "teacher_id": "user_tch_thompson", "color": "#2563EB",
+         "lessons": [
+             {"lesson_id": "les_m1", "title": "Fractions Refresher",
+              "body": "Recap adding and subtracting fractions with unlike denominators.",
+              "resources": [{"type": "link", "name": "Khan Academy: Fractions", "url": "https://www.khanacademy.org/math/arithmetic/fraction-arithmetic"}]},
+             {"lesson_id": "les_m2", "title": "Decimals and Place Value",
+              "body": "Understanding tenths, hundredths, and thousandths.",
+              "resources": [{"type": "video", "name": "Intro to Decimals", "url": "https://www.youtube.com/watch?v=ISs7QzUdgm4"}]},
+         ], "created_at": iso(now())},
+
+        {"course_id": "crs_eng_g5", "title": "English Language Arts 5", "subject": "English",
+         "class_id": "cls_g5a", "teacher_id": "user_tch_thompson", "color": "#059669",
+         "lessons": [
+             {"lesson_id": "les_e1", "title": "Reading Comprehension: Charlotte's Web",
+              "body": "Read Chapter 3 and prepare responses to the guiding questions.",
+              "resources": []},
+         ], "created_at": iso(now())},
+
+        {"course_id": "crs_sci_g5", "title": "Science 5 - Earth & Space", "subject": "Science",
+         "class_id": "cls_g5a", "teacher_id": "user_tch_ahmed", "color": "#D97706",
+         "lessons": [
+             {"lesson_id": "les_s1", "title": "The Solar System",
+              "body": "Planets, moons, and their orbits around the Sun.",
+              "resources": [{"type": "link", "name": "NASA Kids", "url": "https://spaceplace.nasa.gov/"}]},
+         ], "created_at": iso(now())},
+    ]
+    await db.courses.insert_many(courses)
+
+    # Assignments
+    assignments = [
+        {"assignment_id": "asg_math_1", "course_id": "crs_math_g5", "title": "Worksheet: Fractions Practice",
+         "description": "Complete problems 1-20 from the worksheet. Show your work.",
+         "due_at": iso(now() + timedelta(days=3)), "max_points": 100, "created_at": iso(now())},
+        {"assignment_id": "asg_eng_1", "course_id": "crs_eng_g5", "title": "Book Report: Charlotte's Web Ch. 1-5",
+         "description": "Write a one-page reflection on the first five chapters.",
+         "due_at": iso(now() + timedelta(days=5)), "max_points": 50, "created_at": iso(now())},
+        {"assignment_id": "asg_sci_1", "course_id": "crs_sci_g5", "title": "Solar System Poster",
+         "description": "Create a visual poster of the Solar System with labels.",
+         "due_at": iso(now() + timedelta(days=7)), "max_points": 100, "created_at": iso(now())},
+    ]
+    await db.assignments.insert_many(assignments)
+
+    # Sample graded submission (Liam turned in math worksheet)
+    await db.submissions.insert_one({
+        "submission_id": "sub_liam_math1", "assignment_id": "asg_math_1", "student_id": "user_std_liam",
+        "text": "See attached worksheet with all 20 problems solved.", "file_url": None,
+        "submitted_at": iso(now() - timedelta(days=1)),
+        "grade": 88.0, "feedback": "Great work on fractions! Watch out for common denominators in Q14.",
+        "graded_at": iso(now()), "graded_by": "user_tch_thompson",
+    })
+
+    # Quizzes
+    quizzes = [
+        {"quiz_id": "qz_math_1", "course_id": "crs_math_g5", "title": "Fractions Quick Check",
+         "questions": [
+             {"q_id": "q1", "type": "mcq", "prompt": "What is 1/2 + 1/4?",
+              "options": ["2/6", "3/4", "1/6", "1/4"], "answer": "3/4", "points": 2},
+             {"q_id": "q2", "type": "tf", "prompt": "3/6 is equivalent to 1/2.",
+              "options": ["true", "false"], "answer": "true", "points": 1},
+             {"q_id": "q3", "type": "short", "prompt": "Write 0.75 as a fraction in simplest form.",
+              "options": [], "answer": "3/4", "points": 2},
+         ], "created_at": iso(now())},
+        {"quiz_id": "qz_sci_1", "course_id": "crs_sci_g5", "title": "Planets Pop Quiz",
+         "questions": [
+             {"q_id": "q1", "type": "mcq", "prompt": "Which planet is closest to the Sun?",
+              "options": ["Venus", "Mercury", "Earth", "Mars"], "answer": "Mercury", "points": 1},
+             {"q_id": "q2", "type": "tf", "prompt": "Jupiter is the largest planet.",
+              "options": ["true", "false"], "answer": "true", "points": 1},
+         ], "created_at": iso(now())},
+    ]
+    await db.quizzes.insert_many(quizzes)
+
+    # Announcements
+    anns = [
+        {"announcement_id": "ann_1", "title": "Welcome to the Spring Term",
+         "body": "Dear students and families, we are delighted to welcome you back. Please review the term schedule.",
+         "scope": "school", "class_id": None, "author_id": "user_owner_admin",
+         "author_name": "Asmaa Mohamed", "pinned": True, "created_at": iso(now() - timedelta(days=2))},
+        {"announcement_id": "ann_2", "title": "Math Quiz on Friday",
+         "body": "Grade 5-A: Fractions quiz on Friday. Review lessons 1 and 2.",
+         "scope": "class", "class_id": "cls_g5a", "author_id": "user_tch_thompson",
+         "author_name": "Sarah Thompson", "pinned": False, "created_at": iso(now() - timedelta(hours=6))},
+    ]
+    await db.announcements.insert_many(anns)
+
+    # Attendance (last 3 days)
+    for i in range(1, 4):
+        date_str = (now() - timedelta(days=i)).strftime("%Y-%m-%d")
+        for sid, status in [("user_std_liam", "present"), ("user_std_aisha", "present"),
+                            ("user_std_noah", "late" if i == 2 else "present")]:
+            await db.attendance.insert_one({
+                "class_id": "cls_g5a", "date": date_str, "student_id": sid, "status": status,
+                "marked_by": "user_tch_thompson", "marked_at": iso(now()),
+            })
+
+
+
+
+Created
+/app/frontend/src/pages/Login.jsx
+
+import { Button } from "@/components/ui/button";
+import { GraduationCap, ShieldCheck, Sparkles, ArrowRight } from "lucide-react";
+
+export default function Login() {
+  const handleLogin = () => {
+    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+    const redirectUrl = window.location.origin + "/dashboard";
+    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  };
+
+  return (
+    <div className="min-h-screen grid lg:grid-cols-2 bg-slate-50">
+      {/* Left: Brand + Hero */}
+      <div className="relative hidden lg:flex flex-col justify-between p-12 bg-slate-950 text-slate-100 overflow-hidden">
+        <div className="absolute inset-0 grain-overlay opacity-30 pointer-events-none" />
+        <div className="absolute -top-24 -right-24 w-96 h-96 bg-amber-600/20 rounded-full blur-3xl" />
+        <div className="relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 grid place-items-center shadow-lg">
+              <GraduationCap className="w-6 h-6 text-white" strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-amber-400">American School</p>
+              <p className="font-heading text-xl font-bold">United Arab Emirates</p>
+            </div>
+          </div>
+
+          <div className="mt-20">
+            <h1 className="font-heading text-5xl font-bold tracking-tight leading-[1.05]">
+              Learning that travels<br />
+              <span className="text-amber-400">home</span> with every student.
+            </h1>
+            <p className="mt-6 text-slate-300 max-w-md leading-relaxed">
+              A private Canvas-style learning space for KG through Grade 12 â€” courses,
+              assignments, quizzes, gradebook, and family visibility, together on every iPad.
+            </p>
+          </div>
+        </div>
+
+        <div className="relative z-10 grid grid-cols-3 gap-4">
+          {[
+            { icon: ShieldCheck, label: "Class-level isolation" },
+            { icon: Sparkles, label: "Auto-graded quizzes" },
+            { icon: GraduationCap, label: "Report card PDFs" },
+          ].map(({ icon: Icon, label }, i) => (
+            <div key={i} className="rounded-2xl border border-slate-800 bg-slate-900/60 backdrop-blur px-4 py-4">
+              <Icon className="w-5 h-5 text-amber-400 mb-2" />
+              <p className="text-xs text-slate-300 leading-snug">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Right: Login card */}
+      <div className="flex items-center justify-center p-8">
+        <div className="w-full max-w-md" data-testid="login-panel">
+          <div className="lg:hidden mb-8 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-slate-900 grid place-items-center">
+              <GraduationCap className="w-5 h-5 text-amber-400" strokeWidth={2.5} />
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700">American School UAE</p>
+              <p className="font-heading font-bold text-slate-900">Canvas</p>
+            </div>
+          </div>
+
+          <p className="text-xs uppercase tracking-[0.2em] text-amber-700 font-semibold">Sign in</p>
+          <h2 className="mt-2 font-heading text-4xl font-bold text-slate-900 tracking-tight">
+            Welcome back.
+          </h2>
+          <p className="mt-3 text-slate-600 leading-relaxed">
+            Use your school Google or Microsoft account to enter your personalized
+            classroom. Your data stays within your class and your teachers.
+          </p>
+
+          <div className="mt-10 space-y-3">
+            <Button
+              data-testid="google-login-btn"
+              onClick={handleLogin}
+              size="lg"
+              className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white text-base font-medium justify-between group"
+            >
+              <span className="flex items-center gap-3">
+                <svg className="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with school account
+              </span>
+              <ArrowRight className="w-4 h-4 opacity-0 group-hover:opacity-100 transition" />
+            </Button>
+
+            <div className="rounded-lg bg-amber-50 border border-amber-200/60 px-4 py-3">
+              <p className="text-xs text-amber-900 leading-relaxed">
+                <strong>Note:</strong> Microsoft 365 Entra SSO will replace Google in Phase 4.
+                For now, sign in with your Google account â€” the admin can then preview any role.
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-10 text-xs text-slate-400 leading-relaxed">
+            By continuing you agree to your school's Acceptable Use Policy.
+            Data hosted in UAE / EU region for compliance.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+Created
+/app/frontend/src/pages/AuthCallback.jsx
+
+import { useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { GraduationCap } from "lucide-react";
+
+export default function AuthCallback() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { setUser } = useAuth();
+  const hasProcessed = useRef(false);
+
+  useEffect(() => {
+    if (hasProcessed.current) return;
+    hasProcessed.current = true;
+
+    const hash = location.hash || window.location.hash;
+    const params = new URLSearchParams(hash.replace(/^#/, ""));
+    const session_id = params.get("session_id");
+
+    if (!session_id) {
+      navigate("/", { replace: true });
+      return;
+    }
+
+    (async () => {
+      try {
+        const r = await api.post("/auth/session", { session_id });
+        setUser(r.data.user);
+        window.history.replaceState({}, "", "/dashboard");
+        navigate("/dashboard", { replace: true, state: { user: r.data.user } });
+      } catch (e) {
+        console.error("Auth exchange failed", e);
+        navigate("/", { replace: true });
+      }
+    })();
+  }, [location, navigate, setUser]);
+
+  return (
+    <div className="min-h-screen grid place-items-center bg-slate-50">
+      <div className="text-center">
+        <div className="w-14 h-14 mx-auto rounded-2xl bg-slate-900 grid place-items-center animate-pulse">
+          <GraduationCap className="w-7 h-7 text-amber-400" />
+        </div>
+        <p className="mt-6 text-sm text-slate-600">Preparing your classroomâ€¦</p>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+Created
+/app/frontend/src/index.css
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --font-heading: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", monospace;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #F8FAFC;
+    color: #0F172A;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+}
+
+code, .font-mono { font-family: var(--font-mono); }
+
+@layer base {
+    :root {
+        --background: 210 40% 98%;
+        --foreground: 222 47% 11%;
+        --card: 0 0% 100%;
+        --card-foreground: 222 47% 11%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 222 47% 11%;
+        --primary: 222 47% 20%;
+        --primary-foreground: 210 40% 98%;
+        --secondary: 210 40% 96%;
+        --secondary-foreground: 222 47% 11%;
+        --muted: 210 40% 96%;
+        --muted-foreground: 215 16% 47%;
+        --accent: 32 95% 44%;
+        --accent-foreground: 0 0% 100%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 214 32% 91%;
+        --input: 214 32% 91%;
+        --ring: 222 47% 20%;
+        --radius: 0.75rem;
+    }
+    .dark {
+        --background: 222 47% 6%;
+        --foreground: 210 40% 98%;
+        --card: 222 47% 11%;
+        --card-foreground: 210 40% 98%;
+        --popover: 222 47% 11%;
+        --popover-foreground: 210 40% 98%;
+        --primary: 210 40% 98%;
+        --primary-foreground: 222 47% 11%;
+        --secondary: 217 33% 17%;
+        --secondary-foreground: 210 40% 98%;
+        --muted: 217 33% 17%;
+        --muted-foreground: 215 20% 65%;
+        --accent: 32 95% 50%;
+        --accent-foreground: 222 47% 11%;
+        --destructive: 0 63% 40%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 217 33% 20%;
+        --input: 217 33% 20%;
+        --ring: 210 40% 98%;
+    }
+}
+
+@layer base {
+    * { @apply border-border; }
+    body { @apply bg-background text-foreground; }
+}
+
+/* iPad safe-area */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94A3B8; }
+
+.grain-overlay {
+    background-image: radial-gradient(circle at 1px 1px, rgba(15, 23, 42, 0.04) 1px, transparent 0);
+    background-size: 20px 20px;
+}
+
+/* Selection */
+::selection { background: #D97706; color: white; }
+
+
+
+Created
+/app/frontend/src/pages/Admin.jsx
+
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { toast } from "sonner";
+import { Plus, Users, School, BookOpen } from "lucide-react";
+
+function StatChip({ icon: Icon, label, value, color }) {
+  return (
+    <Card className="border-slate-200 shadow-none">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] uppercase tracking-[0.15em] font-semibold text-slate-500">{label}</p>
+          <Icon className={`w-4 h-4 ${color}`} />
+        </div>
+        <p className={`mt-2 font-heading text-3xl font-bold ${color}`}>{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function NewUserDialog({ classes }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", role: "student", class_ids: [] });
+  const qc = useQueryClient();
+  const create = useMutation({
+    mutationFn: async () => (await api.post("/admin/users", form)).data,
+    onSuccess: () => { toast.success("User created"); qc.invalidateQueries({ queryKey: ["all-users"] }); setOpen(false); },
+    onError: (e) => toast.error(e?.response?.data?.detail || "Failed"),
+  });
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button data-testid="new-user-btn"><Plus className="w-4 h-4 mr-1" /> New User</Button></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Create user</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Name</Label><Input data-testid="nu-name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+          <div><Label>Email</Label><Input data-testid="nu-email" type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
+          <div>
+            <Label>Role</Label>
+            <Select value={form.role} onValueChange={v => setForm({...form, role: v})}>
+              <SelectTrigger data-testid="nu-role"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="student">Student</SelectItem>
+                <SelectItem value="teacher">Teacher</SelectItem>
+                <SelectItem value="parent">Parent</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {["student", "teacher"].includes(form.role) && (
+            <div>
+              <Label>Class</Label>
+              <Select value={form.class_ids[0] || ""} onValueChange={v => setForm({...form, class_ids: [v]})}>
+                <SelectTrigger data-testid="nu-class"><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  {classes.map(c => <SelectItem key={c.class_id} value={c.class_id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button data-testid="nu-save" onClick={() => create.mutate()} disabled={create.isPending || !form.name || !form.email}>
+            Create user
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NewClassDialog() {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ name: "", grade: "G1" });
+  const qc = useQueryClient();
+  const create = useMutation({
+    mutationFn: async () => (await api.post("/admin/classes", form)).data,
+    onSuccess: () => { toast.success("Class created"); qc.invalidateQueries({ queryKey: ["classes"] }); setOpen(false); },
+  });
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild><Button variant="outline" data-testid="new-class-btn"><Plus className="w-4 h-4 mr-1" /> New Class</Button></DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Create class</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Name</Label><Input data-testid="nc-name" placeholder="Grade 3 - Section B" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
+          <div>
+            <Label>Grade level</Label>
+            <Select value={form.grade} onValueChange={v => setForm({...form, grade: v})}>
+              <SelectTrigger data-testid="nc-grade"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {["KG1", "KG2", ...Array.from({length: 12}, (_, i) => `G${i+1}`)].map(g => (
+                  <SelectItem key={g} value={g}>{g}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter><Button data-testid="nc-save" onClick={() => create.mutate()} disabled={!form.name}>Create</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function Admin() {
+  const { data: stats } = useQuery({ queryKey: ["admin-stats"], queryFn: async () => (await api.get("/admin/stats")).data });
+  const { data: users = [] } = useQuery({ queryKey: ["all-users"], queryFn: async () => (await api.get("/users")).data });
+  const { data: classes = [] } = useQuery({ queryKey: ["classes"], queryFn: async () => (await api.get("/classes")).data });
+
+  return (
+    <div className="space-y-6" data-testid="admin-page">
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-bold">School Operations</p>
+        <h1 className="font-heading text-4xl font-bold text-slate-900 tracking-tight">Admin Panel</h1>
+        <p className="mt-2 text-slate-600">Users, classes, and school-wide configuration.</p>
+      </div>
+
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatChip label="Users" value={stats.users} icon={Users} color="text-slate-900" />
+          <StatChip label="Students" value={stats.students} icon={Users} color="text-blue-700" />
+          <StatChip label="Classes" value={stats.classes} icon={School} color="text-amber-700" />
+          <StatChip label="Courses" value={stats.courses} icon={BookOpen} color="text-emerald-700" />
+        </div>
+      )}
+
+      <Tabs defaultValue="users">
+        <TabsList data-testid="admin-tabs">
+          <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
+          <TabsTrigger value="classes" data-testid="tab-classes">Classes</TabsTrigger>
+          <TabsTrigger value="sso" data-testid="tab-sso">SSO</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="users" className="mt-6 space-y-4">
+          <div className="flex justify-end"><NewUserDialog classes={classes} /></div>
+          <Card className="border-slate-200 shadow-none overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50 hover:bg-slate-50">
+                  <TableHead className="text-xs uppercase tracking-wider">Name</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Email</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Role</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Class</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map(u => (
+                  <TableRow key={u.user_id} data-testid={`user-row-${u.user_id}`}>
+                    <TableCell className="font-medium">{u.name}</TableCell>
+                    <TableCell className="font-mono text-xs">{u.email}</TableCell>
+                    <TableCell><Badge variant="outline" className="capitalize">{u.role}</Badge></TableCell>
+                    <TableCell className="text-xs text-slate-500">{(u.class_ids || []).join(", ") || "â€”"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="classes" className="mt-6 space-y-4">
+          <div className="flex justify-end"><NewClassDialog /></div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {classes.map(c => (
+              <Card key={c.class_id} className="border-slate-200 shadow-none" data-testid={`class-card-${c.class_id}`}>
+                <CardContent className="p-5">
+                  <p className="text-[10px] uppercase tracking-wider font-semibold text-amber-700">{c.grade}</p>
+                  <h3 className="font-heading font-bold text-lg mt-1 text-slate-900">{c.name}</h3>
+                  <p className="mt-2 text-xs text-slate-500 font-mono">{c.class_id}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="sso" className="mt-6">
+          <Card className="border-slate-200 shadow-none">
+            <CardContent className="p-6 space-y-3">
+              <div className="flex items-center gap-3">
+                <Badge className="bg-amber-500 text-white border-0">Phase 4</Badge>
+                <h3 className="font-heading font-bold text-lg">Microsoft 365 Entra SSO</h3>
+              </div>
+              <p className="text-sm text-slate-600 leading-relaxed">
+                Currently authenticating via Google (placeholder). To enable Microsoft 365 Entra ID SSO,
+                register the app in your Azure tenant and provide:
+              </p>
+              <ul className="text-sm text-slate-600 list-disc pl-6 space-y-1">
+                <li>Tenant ID</li>
+                <li>Client ID</li>
+                <li>Client Secret</li>
+                <li>Redirect URI: <code className="font-mono text-xs bg-slate-100 px-1 rounded">{window.location.origin}/dashboard</code></li>
+              </ul>
+              <p className="text-xs text-slate-500 pt-2">
+                Deployment target: MDM Web Clip push (Jamf / Intune / Mosyle) to school-issued iPads.
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+
+
+
+Created
+/app/frontend/src/App.css
+
+.App {
+    min-height: 100vh;
+}
+
+
+
+Created
+/app/frontend/src/pages/CourseDetail.jsx
+
+import { useParams, Link } from "react-router-dom";
+import { api } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ArrowLeft, PlayCircle, LinkIcon, FileText, Video } from "lucide-react";
+
+export default function CourseDetail() {
+  const { id } = useParams();
+  const { data: course } = useQuery({ queryKey: ["course", id], queryFn: async () => (await api.get(`/courses/${id}`)).data });
+  const { data: assignments = [] } = useQuery({
+    queryKey: ["assignments", id], queryFn: async () => (await api.get(`/assignments?course_id=${id}`)).data,
+  });
+  const { data: quizzes = [] } = useQuery({
+    queryKey: ["quizzes", id], queryFn: async () => (await api.get(`/quizzes?course_id=${id}`)).data,
+  });
+
+  if (!course) return <p className="text-sm text-slate-500">Loadingâ€¦</p>;
+
+  return (
+    <div className="space-y-6" data-testid="course-detail">
+      <Link to="/courses" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900" data-testid="back-to-courses">
+        <ArrowLeft className="w-4 h-4" /> Back to courses
+      </Link>
+
+      <div className="relative overflow-hidden rounded-3xl p-8 text-white" style={{ background: `linear-gradient(135deg, ${course.color}, ${course.color}dd)` }}>
+        <div className="absolute inset-0 grain-overlay opacity-30" />
+        <p className="relative text-[10px] uppercase tracking-[0.25em] font-bold opacity-80">{course.subject}</p>
+        <h1 className="relative font-heading text-4xl font-bold tracking-tight mt-2">{course.title}</h1>
+        <p className="relative mt-2 opacity-80 text-sm">{course.lessons?.length || 0} lessons Â· {assignments.length} assignments Â· {quizzes.length} quizzes</p>
+      </div>
+
+      <Tabs defaultValue="lessons">
+        <TabsList data-testid="course-tabs">
+          <TabsTrigger value="lessons" data-testid="tab-lessons">Lessons</TabsTrigger>
+          <TabsTrigger value="assignments" data-testid="tab-assignments">Assignments</TabsTrigger>
+          <TabsTrigger value="quizzes" data-testid="tab-quizzes">Quizzes</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="lessons" className="mt-6 space-y-3">
+          {(course.lessons || []).map((l, idx) => (
+            <Card key={l.lesson_id} className="border-slate-200 shadow-none" data-testid={`lesson-${l.lesson_id}`}>
+              <CardContent className="p-5">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-slate-900 text-white grid place-items-center font-heading font-bold text-sm">
+                    {idx + 1}
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-heading font-semibold text-lg text-slate-900">{l.title}</h3>
+                    <p className="mt-1 text-sm text-slate-600 leading-relaxed">{l.body}</p>
+                    {l.resources?.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {l.resources.map((r, i) => {
+                          const Icon = r.type === "video" ? Video : r.type === "file" ? FileText : LinkIcon;
+                          return (
+                            <a key={i} href={r.url} target="_blank" rel="noreferrer"
+                               className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-700">
+                              <Icon className="w-3.5 h-3.5" /> {r.name}
+                            </a>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="assignments" className="mt-6 space-y-3">
+          {assignments.map(a => (
+            <Card key={a.assignment_id} className="border-slate-200 shadow-none">
+              <CardContent className="p-5 flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-heading font-semibold text-slate-900">{a.title}</h3>
+                  <p className="text-xs text-slate-500 mt-1">Due {new Date(a.due_at).toLocaleDateString()} Â· {a.max_points} pts</p>
+                </div>
+                <Link to="/assignments" data-testid={`open-assignment-${a.assignment_id}`}>
+                  <Button variant="outline" size="sm">Open</Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
+
+        <TabsContent value="quizzes" className="mt-6 space-y-3">
+          {quizzes.map(q => (
+            <Card key={q.quiz_id} className="border-slate-200 shadow-none">
+              <CardContent className="p-5 flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="font-heading font-semibold text-slate-900">{q.title}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{q.questions.length} questions</p>
+                  {q.my_attempt && (
+                    <Badge className="mt-2 bg-emerald-100 text-emerald-800 border-0" data-testid={`quiz-score-${q.quiz_id}`}>
+                      Score: {q.my_attempt.score}/{q.my_attempt.max_points}
+                    </Badge>
+                  )}
+                </div>
+                <Link to={`/quizzes/${q.quiz_id}`} data-testid={`take-quiz-${q.quiz_id}`}>
+                  <Button size="sm" className="bg-slate-900 hover:bg-slate-800">
+                    <PlayCircle className="w-4 h-4 mr-1" /> {q.my_attempt ? "Review" : "Take Quiz"}
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+
+
+
+
+Created
+/app/frontend/src/pages/Dashboard.jsx
+
+import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { BookOpenText, ClipboardList, FileQuestion, CalendarCheck, TrendingUp, Users, Megaphone } from "lucide-react";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
+
+const heroImg = "https://images.unsplash.com/photo-1651503021067-edff78c1d0e4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBzY2hvb2wlMjBjYW1wdXMlMjBidWlsZGluZyUyMGR1YmFpfGVufDB8fHx8MTc4NzM2MTk2M3ww&ixlib=rb-4.1.0&q=85";
+
+function StatCard({ icon: Icon, label, value, hint, color = "text-slate-900", testid }) {
+  return (
+    <Card data-testid={testid} className="border-slate-200 shadow-none">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-500">{label}</p>
+          <Icon className={`w-4 h-4 ${color}`} />
+        </div>
+        <p className={`mt-2 font-heading text-3xl font-bold ${color}`}>{value}</p>
+        {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const { data: courses = [] } = useQuery({ queryKey: ["courses"], queryFn: async () => (await api.get("/courses")).data });
+  const { data: assignments = [] } = useQuery({ queryKey: ["assignments"], queryFn: async () => (await api.get("/assignments")).data });
+  const { data: announcements = [] } = useQuery({ queryKey: ["announcements"], queryFn: async () => (await api.get("/announcements")).data });
+  const { data: adminStats } = useQuery({
+    queryKey: ["admin-stats"], enabled: user?.role === "admin",
+    queryFn: async () => (await api.get("/admin/stats")).data,
+  });
+
+  const upcoming = assignments.slice(0, 5);
+  const greeting = new Date().getHours() < 12 ? "Good morning" : new Date().getHours() < 18 ? "Good afternoon" : "Good evening";
+
+  return (
+    <div className="space-y-8" data-testid="dashboard-root">
+      {/* Hero */}
+      <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white p-8 md:p-10">
+        <div className="absolute inset-0 opacity-30" style={{ backgroundImage: `url(${heroImg})`, backgroundSize: "cover", backgroundPosition: "center" }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/85 to-slate-950/40" />
+        <div className="relative z-10 max-w-2xl">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-amber-400">
+            {format(new Date(), "EEEE, MMMM d, yyyy")}
+          </p>
+          <h1 className="mt-2 font-heading text-4xl md:text-5xl font-bold tracking-tight">
+            {greeting}, {user?.name?.split(" ")[0]}.
+          </h1>
+          <p className="mt-3 text-slate-300 leading-relaxed">
+            {user?.role === "student" && "Here is what needs your attention today."}
+            {user?.role === "teacher" && "Your classes and grading queue at a glance."}
+            {user?.role === "parent" && "A read-only view of your child's academic journey."}
+            {user?.role === "admin" && "School-wide health, users, and academic operations."}
+          </p>
+          <div className="mt-6 flex items-center gap-2 flex-wrap">
+            <Badge className="bg-white/10 text-white hover:bg-white/15 border border-white/20 uppercase tracking-wider text-[10px] font-bold">
+              {user?.role}
+            </Badge>
+            <Badge className="bg-amber-500/20 text-amber-100 border border-amber-500/30 uppercase tracking-wider text-[10px] font-bold">
+              Spring Term 2026
+            </Badge>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats grid */}
+      {user?.role === "admin" && adminStats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard testid="stat-students" icon={Users} label="Students" value={adminStats.students} hint="Enrolled" color="text-blue-700" />
+          <StatCard testid="stat-teachers" icon={Users} label="Teachers" value={adminStats.teachers} hint="Active" color="text-emerald-700" />
+          <StatCard testid="stat-classes" icon={BookOpenText} label="Classes" value={adminStats.classes} hint="KG through G12" color="text-amber-700" />
+          <StatCard testid="stat-courses" icon={ClipboardList} label="Courses" value={adminStats.courses} hint="This term" color="text-slate-900" />
+        </div>
+      )}
+      {user?.role !== "admin" && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard testid="stat-courses" icon={BookOpenText} label="Courses" value={courses.length} color="text-blue-700" />
+          <StatCard testid="stat-assignments" icon={ClipboardList} label="Assignments" value={assignments.length} color="text-amber-700" />
+          <StatCard testid="stat-announcements" icon={Megaphone} label="Announcements" value={announcements.length} color="text-emerald-700" />
+          <StatCard testid="stat-attendance" icon={CalendarCheck} label="Attendance" value="98%" hint="This week" color="text-slate-900" />
+        </div>
+      )}
+
+      {/* Courses & upcoming */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="font-heading text-xl font-bold text-slate-900">Your courses</h2>
+            <Link to="/courses" className="text-sm text-amber-700 font-medium hover:underline" data-testid="view-all-courses">
+              View all â†’
+            </Link>
+          </div>
+          {courses.length === 0 ? (
+            <Card className="border-dashed"><CardContent className="p-8 text-center text-sm text-slate-500">
+              No courses yet.
+            </CardContent></Card>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {courses.slice(0, 4).map(c => (
+                <Link key={c.course_id} to={`/courses/${c.course_id}`} data-testid={`course-card-${c.course_id}`}>
+                  <Card className="border-slate-200 shadow-none hover:shadow-md hover:-translate-y-0.5 transition-all overflow-hidden">
+                    <div className="h-24 relative" style={{ background: `linear-gradient(135deg, ${c.color}, ${c.color}dd)` }}>
+                      <div className="absolute inset-0 grain-overlay opacity-30" />
+                      <p className="absolute bottom-2 left-4 text-white text-[10px] font-bold uppercase tracking-[0.2em]">{c.subject}</p>
+                    </div>
+                    <CardContent className="p-4">
+                      <h3 className="font-heading font-semibold text-slate-900">{c.title}</h3>
+                      <p className="mt-1 text-xs text-slate-500">{c.lessons?.length || 0} lessons</p>
+                      <Progress value={Math.round(Math.random() * 40 + 40)} className="mt-3 h-1.5" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-5">
+          <h2 className="font-heading text-xl font-bold text-slate-900">Upcoming</h2>
+          <Card className="border-slate-200 shadow-none">
+            <CardContent className="p-2">
+              {upcoming.length === 0 && <p className="p-6 text-center text-sm text-slate-500">Nothing due â€” you're all caught up.</p>}
+              {upcoming.map(a => (
+                <Link key={a.assignment_id} to="/assignments" data-testid={`upcoming-${a.assignment_id}`}
+                      className="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-50">
+                  <div className="w-9 h-9 rounded-lg bg-amber-100 grid place-items-center shrink-0">
+                    <ClipboardList className="w-4 h-4 text-amber-700" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{a.title}</p>
+                    <p className="text-xs text-slate-500">Due {formatDistanceToNow(parseISO(a.due_at), { addSuffix: true })}</p>
+                  </div>
+                </Link>
+              ))}
+            </CardContent>
+          </Card>
+
+          <h2 className="font-heading text-xl font-bold text-slate-900">Announcements</h2>
+          <div className="space-y-3">
+            {announcements.slice(0, 3).map(a => (
+              <Card key={a.announcement_id} className="border-slate-200 shadow-none">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    {a.pinned && <span className="text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white px-1.5 py-0.5 rounded">Pinned</span>}
+                    <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">{a.scope}</p>
+                  </div>
+                  <h4 className="mt-2 font-heading font-semibold text-slate-900">{a.title}</h4>
+                  <p className="mt-1 text-xs text-slate-600 line-clamp-2">{a.body}</p>
+                  <p className="mt-2 text-[10px] text-slate-400">by {a.author_name}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+Created
+/app/frontend/src/components/AppShell.jsx
+
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+  LayoutDashboard, BookOpenText, ClipboardList, FileQuestion, LineChart,
+  CalendarCheck, Megaphone, Settings, LogOut, GraduationCap, ChevronDown, Eye
+} from "lucide-react";
+import { Toaster } from "@/components/ui/sonner";
+
+const NAV = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, testid: "nav-dashboard" },
+  { to: "/courses", label: "Courses", icon: BookOpenText, testid: "nav-courses" },
+  { to: "/assignments", label: "Assignments", icon: ClipboardList, testid: "nav-assignments" },
+  { to: "/gradebook", label: "Gradebook", icon: LineChart, testid: "nav-gradebook" },
+  { to: "/attendance", label: "Attendance", icon: CalendarCheck, testid: "nav-attendance", roles: ["admin", "teacher", "parent", "student"] },
+  { to: "/announcements", label: "Announcements", icon: Megaphone, testid: "nav-announcements" },
+  { to: "/admin", label: "Admin", icon: Settings, testid: "nav-admin", roles: ["admin"] },
+];
+
+function RoleBadge({ role }) {
+  const map = {
+    admin: { c: "bg-slate-900 text-white", l: "Administrator" },
+    teacher: { c: "bg-blue-100 text-blue-900", l: "Teacher" },
+    student: { c: "bg-emerald-100 text-emerald-900", l: "Student" },
+    parent: { c: "bg-amber-100 text-amber-900", l: "Parent" },
+  }[role] || { c: "bg-slate-100 text-slate-900", l: role };
+  return <span className={`text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${map.c}`}>{map.l}</span>;
+}
+
+function ViewAsSwitcher() {
+  const { user, refresh } = useAuth();
+  const isAdmin = user?.role === "admin" || user?._actual_admin_id;
+  const { data: users = [] } = useQuery({
+    queryKey: ["all-users-admin"],
+    queryFn: async () => (await api.get("/users")).data,
+    enabled: !!isAdmin,
+  });
+  if (!isAdmin) return null;
+  const handleChange = async (uid) => {
+    await api.post("/auth/view-as", { user_id: uid === "self" ? null : uid });
+    await refresh();
+    window.location.reload();
+  };
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200/60">
+      <Eye className="w-4 h-4 text-amber-700" />
+      <span className="text-xs font-semibold text-amber-900 uppercase tracking-wider">View As</span>
+      <Select onValueChange={handleChange} defaultValue="self">
+        <SelectTrigger data-testid="view-as-select" className="w-[200px] h-8 bg-white border-amber-200 text-xs">
+          <SelectValue placeholder="Preview role" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="self" data-testid="view-as-admin">Myself (Admin)</SelectItem>
+          {users.filter(u => u.role !== "admin").map(u => (
+            <SelectItem key={u.user_id} value={u.user_id} data-testid={`view-as-${u.role}-${u.user_id}`}>
+              {u.name} â€” {u.role}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+export default function AppShell({ children }) {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  if (!user) return null;
+
+  const items = NAV.filter(n => !n.roles || n.roles.includes(user.role));
+
+  return (
+    <div className="min-h-screen bg-slate-50 flex">
+      {/* Sidebar */}
+      <aside className="hidden md:flex flex-col w-64 border-r border-slate-200 bg-white safe-top">
+        <div className="p-5 flex items-center gap-3 border-b border-slate-100">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 grid place-items-center">
+            <GraduationCap className="w-5 h-5 text-amber-400" strokeWidth={2.5} />
+          </div>
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.2em] text-amber-700 font-bold">ASU</p>
+            <p className="font-heading font-bold text-slate-900 leading-tight">Canvas</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 p-3 space-y-1">
+          {items.map(({ to, label, icon: Icon, testid }) => (
+            <NavLink
+              key={to} to={to} data-testid={testid}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition
+                 ${isActive ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"}`
+              }>
+              <Icon className="w-[18px] h-[18px]" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="p-3 border-t border-slate-100">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button data-testid="user-menu-trigger" className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100">
+                <Avatar className="w-9 h-9">
+                  <AvatarImage src={user.picture} />
+                  <AvatarFallback className="bg-amber-100 text-amber-900 text-sm font-semibold">
+                    {user.name?.[0]?.toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1 text-left overflow-hidden">
+                  <p className="text-sm font-medium text-slate-900 truncate">{user.name}</p>
+                  <RoleBadge role={user.role} />
+                </div>
+                <ChevronDown className="w-4 h-4 text-slate-400" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel className="text-xs text-slate-500">{user.email}</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem data-testid="logout-btn" onClick={logout} className="text-red-600">
+                <LogOut className="w-4 h-4 mr-2" /> Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="sticky top-0 z-30 backdrop-blur-xl bg-white/85 border-b border-slate-200 safe-top">
+          <div className="flex items-center justify-between px-6 py-4 gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="md:hidden w-9 h-9 rounded-lg bg-slate-900 grid place-items-center">
+                <GraduationCap className="w-5 h-5 text-amber-400" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-semibold">American School UAE</p>
+                <h1 data-testid="page-title" className="font-heading text-lg font-bold text-slate-900 truncate">
+                  Canvas â€” Learning Portal
+                </h1>
+              </div>
+            </div>
+            <ViewAsSwitcher />
+          </div>
+          {/* Mobile bottom nav placeholder */}
+        </header>
+
+        <main className="flex-1 p-6 md:p-8 max-w-[1400px] w-full mx-auto">
+          {children}
+        </main>
+      </div>
+      <Toaster richColors position="top-right" />
+    </div>
+  );
+}
+
+
+
+
+Created
+/app/frontend/src/pages/Announcements.jsx
+123456789101112131415161718192021
+
+
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { Megaphone, Pin, Plus } from "lucide-react";
+import { formatDistanceToNow, parseISO } from "date-fns";
+
+export default function Announcements() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", body: "", scope: "school", class_id: "", pinned: false });
+
+  const { data: items = [] } = useQuery({ queryKey: ["announcements"], queryFn: async () => (await api.get("/announcements")).data });
+  const { data: classes = [] } = useQuery({ queryKey: ["classes"], queryFn: async () => (await api.get("/classes")).data });
+
+  const create = useMutation({
+    mutationFn: async () => (await api.post("/announcements", form)).data,
+    onSuccess: () => { toast.success("Announcement published"); qc.invalidateQueries({ queryKey: ["announcements"] }); setOpen(false); setForm({ title: "", body: "", scope: "school", class_id: "", pinned: false }); },
+  });
+
+  const canCreate = ["teacher", "admin"].includes(user?.role);
+
+  return (
+    <div className="space-y-6" data-testid="announcements-page">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-bold">Broadcasts</p>
+          <h1 className="font-heading text-4xl font-bold text-slate-900 tracking-tight">Announcements</h1>
+        </div>
+        {canCreate && (
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button data-testid="new-announcement-btn"><Plus className="w-4 h-4 mr-1" /> New</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>New announcement</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div><Label>Title</Label><Input data-testid="ann-title" value={form.title} onChange={e => setForm({...form, title: e.target.value})} /></div>
+                <div><Label>Body</Label><Textarea data-testid="ann-body" rows={5} value={form.body} onChange={e => setForm({...form, body: e.target.value})} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Scope</Label>
+                    <Select value={form.scope} onValueChange={v => setForm({...form, scope: v})}>
+                      <SelectTrigger data-testid="ann-scope"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="school">School-wide</SelectItem>
+                        <SelectItem value="class">Specific class</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {form.scope === "class" && (
+                    <div>
+                      <Label>Class</Label>
+                      <Select value={form.class_id} onValueChange={v => setForm({...form, class_id: v})}>
+                        <SelectTrigger data-testid="ann-class"><SelectValue placeholder="Select" /></SelectTrigger>
+                        <SelectContent>
+                          {classes.map(c => <SelectItem key={c.class_id} value={c.class_id}>{c.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={form.pinned} onCheckedChange={v => setForm({...form, pinned: v})} data-testid="ann-pinned" />
+                  <Label>Pin to top</Label>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button data-testid="ann-publish" onClick={() => create.mutate()} disabled={create.isPending || !form.title}>
+                  Publish
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        {items.sort((a, b) => (b.pinned - a.pinned) || (new Date(b.created_at) - new Date(a.created_at))).map(a => (
+          <Card key={a.announcement_id} className={`border-slate-200 shadow-none ${a.pinned ? "ring-2 ring-amber-200" : ""}`} data-testid={`announcement-${a.announcement_id}`}>
+            <CardContent className="p-5">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-slate-900 grid place-items-center shrink-0">
+                  <Megaphone className="w-5 h-5 text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {a.pinned && <Badge className="bg-amber-500 text-white border-0"><Pin className="w-3 h-3 mr-1" />Pinned</Badge>}
+                    <Badge variant="outline" className="text-[10px] uppercase tracking-wider">{a.scope}</Badge>
+                    <span className="text-xs text-slate-400">{formatDistanceToNow(parseISO(a.created_at), { addSuffix: true })}</span>
+                  </div>
+                  <h3 className="mt-2 font-heading text-xl font-semibold text-slate-900">{a.title}</h3>
+                  <p className="mt-2 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{a.body}</p>
+                  <p className="mt-3 text-xs text-slate-400">Posted by {a.author_name}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {items.length === 0 && <Card className="border-dashed"><CardContent className="p-12 text-center text-sm text-slate-500">No announcements.</CardContent></Card>}
+      </div>
+    </div>
+  );
+}
+
+
+
+Created
+/app/frontend/src/pages/Gradebook.jsx
+
+import { api, API } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
+
+function letterGrade(pct) {
+  if (pct >= 90) return { l: "A", c: "bg-emerald-100 text-emerald-800" };
+  if (pct >= 80) return { l: "B", c: "bg-blue-100 text-blue-800" };
+  if (pct >= 70) return { l: "C", c: "bg-amber-100 text-amber-800" };
+  if (pct >= 60) return { l: "D", c: "bg-orange-100 text-orange-800" };
+  if (pct > 0) return { l: "F", c: "bg-red-100 text-red-800" };
+  return { l: "â€”", c: "bg-slate-100 text-slate-600" };
+}
+
+function computeScore(studentId, courseId, data) {
+  const asgs = data.assignments.filter(a => a.course_id === courseId);
+  const qzs = data.quizzes.filter(q => q.course_id === courseId);
+  let earned = 0, possible = 0;
+  asgs.forEach(a => {
+    const s = data.submissions.find(x => x.assignment_id === a.assignment_id && x.student_id === studentId);
+    if (s?.grade != null) { earned += s.grade; possible += a.max_points; }
+  });
+  qzs.forEach(q => {
+    const at = data.attempts.find(x => x.quiz_id === q.quiz_id && x.student_id === studentId);
+    if (at) { earned += at.score; possible += at.max_points; }
+  });
+  const pct = possible > 0 ? Math.round((earned / possible) * 100) : 0;
+  return { earned, possible, pct };
+}
+
+export default function Gradebook() {
+  const { user } = useAuth();
+  const { data } = useQuery({
+    queryKey: ["gradebook"], queryFn: async () => (await api.get("/gradebook")).data,
+  });
+
+  const downloadReport = (studentId) => {
+    // Use fetch with credentials so cookies flow correctly
+    fetch(`${API}/report-card/${studentId}`, { credentials: "include" })
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `report_card_${studentId}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+  };
+
+  if (!data) return <p className="text-sm text-slate-500">Loadingâ€¦</p>;
+
+  return (
+    <div className="space-y-6" data-testid="gradebook-page">
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-bold">Academic Records</p>
+        <h1 className="font-heading text-4xl font-bold text-slate-900 tracking-tight">Gradebook</h1>
+        <p className="mt-2 text-slate-600">Course-by-course performance and downloadable report cards.</p>
+      </div>
+
+      <Card className="border-slate-200 shadow-none overflow-hidden">
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-slate-50 hover:bg-slate-50">
+                <TableHead className="text-xs uppercase tracking-wider">Student</TableHead>
+                {data.courses.map(c => (
+                  <TableHead key={c.course_id} className="text-xs uppercase tracking-wider">{c.subject}</TableHead>
+                ))}
+                <TableHead className="text-xs uppercase tracking-wider">Overall</TableHead>
+                <TableHead className="text-xs uppercase tracking-wider text-right">Report</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.students.map(s => {
+                const scores = data.courses.map(c => ({ ...computeScore(s.user_id, c.course_id, data), course: c }));
+                const totalP = scores.reduce((sum, x) => sum + x.pct, 0);
+                const avg = scores.length ? Math.round(totalP / scores.length) : 0;
+                const g = letterGrade(avg);
+                return (
+                  <TableRow key={s.user_id} data-testid={`gb-row-${s.user_id}`}>
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    {scores.map(x => {
+                      const lg = letterGrade(x.pct);
+                      return (
+                        <TableCell key={x.course.course_id}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-mono">{x.pct}%</span>
+                            <Badge className={`${lg.c} border-0 font-bold`}>{lg.l}</Badge>
+                          </div>
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-heading font-bold text-lg">{avg}%</span>
+                        <Badge className={`${g.c} border-0 font-bold`}>{g.l}</Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline" onClick={() => downloadReport(s.user_id)}
+                              data-testid={`download-report-${s.user_id}`}>
+                        <Download className="w-3.5 h-3.5 mr-1" /> PDF
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {data.students.length === 0 && (
+                <TableRow><TableCell colSpan={data.courses.length + 3} className="text-center py-10 text-slate-500 text-sm">
+                  No students yet.
+                </TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+
+
+Created
+/app/frontend/src/pages/Courses.jsx
+
+import { api } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+
+export default function Courses() {
+  const { data: courses = [], isLoading } = useQuery({
+    queryKey: ["courses"], queryFn: async () => (await api.get("/courses")).data,
+  });
+
+  return (
+    <div className="space-y-6" data-testid="courses-page">
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-bold">Curriculum</p>
+        <h1 className="font-heading text-4xl font-bold text-slate-900 tracking-tight">All Courses</h1>
+        <p className="mt-2 text-slate-600">Everything assigned to you this term.</p>
+      </div>
+
+      {isLoading ? <p className="text-sm text-slate-500">Loadingâ€¦</p> : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {courses.map(c => (
+            <Link key={c.course_id} to={`/courses/${c.course_id}`} data-testid={`course-link-${c.course_id}`}>
+              <Card className="border-slate-200 shadow-none hover:shadow-lg hover:-translate-y-1 transition-all overflow-hidden">
+                <div className="h-32 relative" style={{ background: `linear-gradient(135deg, ${c.color}, ${c.color}cc)` }}>
+                  <div className="absolute inset-0 grain-overlay opacity-30" />
+                  <div className="absolute bottom-3 left-4 right-4">
+                    <p className="text-white/70 text-[10px] font-bold uppercase tracking-[0.2em]">{c.subject}</p>
+                    <p className="text-white font-heading font-bold text-lg">{c.title}</p>
+                  </div>
+                </div>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>{c.lessons?.length || 0} lessons</span>
+                    <span className="font-mono text-slate-400">#{c.course_id.slice(-5)}</span>
+                  </div>
+                  <Progress value={Math.round(Math.random() * 40 + 45)} className="mt-3 h-1.5" />
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+          {courses.length === 0 && (
+            <div className="col-span-full text-center py-16 text-slate-500 text-sm">
+              No courses available yet.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+Created
+/app/frontend/src/pages/Assignments.jsx
+
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+import { ClipboardList, Plus, Upload } from "lucide-react";
+import { formatDistanceToNow, parseISO, format } from "date-fns";
+
+function SubmitDialog({ assignment }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(assignment.my_submission?.text || "");
+  const qc = useQueryClient();
+  const submit = useMutation({
+    mutationFn: async () => (await api.post(`/assignments/${assignment.assignment_id}/submit`, { text })).data,
+    onSuccess: () => { toast.success("Submitted successfully"); qc.invalidateQueries({ queryKey: ["assignments"] }); setOpen(false); },
+  });
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" data-testid={`submit-btn-${assignment.assignment_id}`}>
+          <Upload className="w-4 h-4 mr-1" /> {assignment.my_submission ? "Resubmit" : "Submit"}
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>{assignment.title}</DialogTitle></DialogHeader>
+        <p className="text-sm text-slate-600">{assignment.description}</p>
+        <Textarea data-testid="submission-text" value={text} onChange={e => setText(e.target.value)}
+                  placeholder="Type your response here (or reference an attached file)â€¦" rows={8} />
+        <DialogFooter>
+          <Button data-testid="submit-confirm-btn" onClick={() => submit.mutate()} disabled={submit.isPending}>
+            {submit.isPending ? "Submittingâ€¦" : "Submit"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function GradeDrawer({ assignment }) {
+  const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
+  const { data: subs = [] } = useQuery({
+    queryKey: ["submissions", assignment.assignment_id], enabled: open,
+    queryFn: async () => (await api.get(`/assignments/${assignment.assignment_id}/submissions`)).data,
+  });
+  const gradeMut = useMutation({
+    mutationFn: async ({ sid, grade, feedback }) => (await api.post(`/submissions/${sid}/grade`, { grade, feedback })).data,
+    onSuccess: () => { toast.success("Grade saved"); qc.invalidateQueries({ queryKey: ["submissions"] }); },
+  });
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" data-testid={`grade-btn-${assignment.assignment_id}`}>SpeedGrader</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-3xl max-h-[85vh] overflow-auto">
+        <DialogHeader><DialogTitle>SpeedGrader â€” {assignment.title}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          {subs.length === 0 && <p className="text-sm text-slate-500">No submissions yet.</p>}
+          {subs.map(s => (
+            <Card key={s.submission_id} className="border-slate-200 shadow-none">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold text-slate-900">{s.student?.name}</p>
+                    <p className="text-xs text-slate-500">{s.student?.email}</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs">{s.grade != null ? `${s.grade}/${assignment.max_points}` : "Ungraded"}</Badge>
+                </div>
+                <p className="mt-3 text-sm bg-slate-50 rounded p-3">{s.text || <em className="text-slate-400">No text response.</em>}</p>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <Input data-testid={`grade-input-${s.submission_id}`} type="number" placeholder="Score" defaultValue={s.grade ?? ""}
+                         onBlur={(e) => e.target.dataset.value = e.target.value} />
+                  <Input data-testid={`feedback-input-${s.submission_id}`} placeholder="Feedback" defaultValue={s.feedback ?? ""}
+                         onBlur={(e) => e.target.dataset.value = e.target.value} />
+                  <Button data-testid={`save-grade-${s.submission_id}`}
+                          onClick={(e) => {
+                            const row = e.target.closest(".grid");
+                            const inputs = row.querySelectorAll("input");
+                            gradeMut.mutate({ sid: s.submission_id, grade: inputs[0].value, feedback: inputs[1].value });
+                          }}>Save</Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateAssignment() {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ title: "", description: "", course_id: "", due_at: "", max_points: 100 });
+  const qc = useQueryClient();
+  const { data: courses = [] } = useQuery({ queryKey: ["courses"], queryFn: async () => (await api.get("/courses")).data });
+  const create = useMutation({
+    mutationFn: async () => (await api.post("/assignments", { ...form, due_at: new Date(form.due_at).toISOString() })).data,
+    onSuccess: () => { toast.success("Assignment created"); qc.invalidateQueries({ queryKey: ["assignments"] }); setOpen(false); },
+  });
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button data-testid="create-assignment-btn"><Plus className="w-4 h-4 mr-1" /> New Assignment</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader><DialogTitle>New Assignment</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <div><Label>Title</Label><Input data-testid="a-title" value={form.title} onChange={e => setForm({...form, title: e.target.value})} /></div>
+          <div><Label>Description</Label><Textarea data-testid="a-desc" value={form.description} onChange={e => setForm({...form, description: e.target.value})} /></div>
+          <div><Label>Course</Label>
+            <Select value={form.course_id} onValueChange={v => setForm({...form, course_id: v})}>
+              <SelectTrigger data-testid="a-course"><SelectValue placeholder="Select course" /></SelectTrigger>
+              <SelectContent>
+                {courses.map(c => <SelectItem key={c.course_id} value={c.course_id}>{c.title}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Due date</Label><Input data-testid="a-due" type="datetime-local" value={form.due_at} onChange={e => setForm({...form, due_at: e.target.value})} /></div>
+            <div><Label>Max points</Label><Input data-testid="a-points" type="number" value={form.max_points} onChange={e => setForm({...form, max_points: e.target.value})} /></div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button data-testid="a-save" onClick={() => create.mutate()} disabled={create.isPending || !form.title || !form.course_id || !form.due_at}>
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function Assignments() {
+  const { user } = useAuth();
+  const { data: assignments = [] } = useQuery({ queryKey: ["assignments"], queryFn: async () => (await api.get("/assignments")).data });
+  const canCreate = ["teacher", "admin"].includes(user?.role);
+  const isStudent = user?.role === "student";
+
+  return (
+    <div className="space-y-6" data-testid="assignments-page">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-bold">Coursework</p>
+          <h1 className="font-heading text-4xl font-bold text-slate-900 tracking-tight">Assignments</h1>
+        </div>
+        {canCreate && <CreateAssignment />}
+      </div>
+
+      <div className="space-y-3">
+        {assignments.map(a => (
+          <Card key={a.assignment_id} className="border-slate-200 shadow-none" data-testid={`assignment-${a.assignment_id}`}>
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="w-11 h-11 rounded-xl bg-amber-100 grid place-items-center shrink-0">
+                <ClipboardList className="w-5 h-5 text-amber-700" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-heading font-semibold text-slate-900">{a.title}</h3>
+                <p className="text-xs text-slate-600 mt-0.5 line-clamp-1">{a.description}</p>
+                <div className="mt-2 flex items-center gap-3 text-[11px] text-slate-500">
+                  <span>Due {format(parseISO(a.due_at), "MMM d, h:mm a")}</span>
+                  <span>Â·</span>
+                  <span>{a.max_points} pts</span>
+                  {a.my_submission?.grade != null && (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-0" data-testid={`grade-badge-${a.assignment_id}`}>
+                      Grade: {a.my_submission.grade}/{a.max_points}
+                    </Badge>
+                  )}
+                  {a.my_submission && a.my_submission.grade == null && (
+                    <Badge variant="outline" className="text-blue-700 border-blue-200 bg-blue-50">Submitted</Badge>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {isStudent && <SubmitDialog assignment={a} />}
+                {canCreate && <GradeDrawer assignment={a} />}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+        {assignments.length === 0 && (
+          <Card className="border-dashed"><CardContent className="p-12 text-center text-sm text-slate-500">
+            No assignments yet.
+          </CardContent></Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
+
+Created
+/app/frontend/src/pages/Attendance.jsx
+
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+import { CheckCheck } from "lucide-react";
+import { format } from "date-fns";
+
+const STATUSES = [
+  { v: "present", c: "bg-emerald-100 text-emerald-800", l: "Present" },
+  { v: "late", c: "bg-amber-100 text-amber-900", l: "Late" },
+  { v: "absent", c: "bg-red-100 text-red-800", l: "Absent" },
+  { v: "excused", c: "bg-slate-100 text-slate-700", l: "Excused" },
+];
+
+export default function Attendance() {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const isTeacherOrAdmin = ["teacher", "admin"].includes(user?.role);
+
+  const { data: classes = [] } = useQuery({ queryKey: ["classes"], queryFn: async () => (await api.get("/classes")).data });
+  const [classId, setClassId] = useState("");
+  const [date, setDate] = useState(format(new Date(), "yyyy-MM-dd"));
+
+  const currentClassId = classId || classes[0]?.class_id || "";
+
+  const { data: students = [] } = useQuery({
+    queryKey: ["students", currentClassId], enabled: !!currentClassId && isTeacherOrAdmin,
+    queryFn: async () => (await api.get(`/users?role=student&class_id=${currentClassId}`)).data,
+  });
+  const { data: records = [] } = useQuery({
+    queryKey: ["attendance", currentClassId, date],
+    queryFn: async () => (await api.get(`/attendance?class_id=${currentClassId}&date=${date}`)).data,
+  });
+
+  const [local, setLocal] = useState({});
+  const merged = Object.fromEntries(students.map(s => [
+    s.user_id, local[s.user_id] ?? records.find(r => r.student_id === s.user_id)?.status ?? "present",
+  ]));
+
+  const save = useMutation({
+    mutationFn: async () => {
+      const payload = {
+        class_id: currentClassId, date,
+        records: students.map(s => ({ student_id: s.user_id, status: merged[s.user_id] })),
+      };
+      return (await api.post("/attendance", payload)).data;
+    },
+    onSuccess: () => { toast.success("Attendance saved"); qc.invalidateQueries({ queryKey: ["attendance"] }); setLocal({}); },
+  });
+
+  const markAllPresent = () => {
+    setLocal(Object.fromEntries(students.map(s => [s.user_id, "present"])));
+  };
+
+  return (
+    <div className="space-y-6" data-testid="attendance-page">
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-bold">Daily Register</p>
+        <h1 className="font-heading text-4xl font-bold text-slate-900 tracking-tight">Attendance</h1>
+      </div>
+
+      {isTeacherOrAdmin ? (
+        <>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">Class</label>
+              <Select value={currentClassId} onValueChange={setClassId}>
+                <SelectTrigger data-testid="class-select" className="w-[220px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {classes.map(c => <SelectItem key={c.class_id} value={c.class_id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-500 block mb-1">Date</label>
+              <Input data-testid="date-input" type="date" value={date} onChange={e => setDate(e.target.value)} className="w-[180px]" />
+            </div>
+            <Button variant="outline" onClick={markAllPresent} data-testid="mark-all-present">
+              <CheckCheck className="w-4 h-4 mr-1" /> Mark All Present
+            </Button>
+            <Button className="bg-slate-900 hover:bg-slate-800" onClick={() => save.mutate()} data-testid="save-attendance"
+                    disabled={save.isPending || students.length === 0}>
+              {save.isPending ? "Savingâ€¦" : "Save"}
+            </Button>
+          </div>
+
+          <Card className="border-slate-200 shadow-none">
+            <CardContent className="p-0 divide-y divide-slate-100">
+              {students.map(s => (
+                <div key={s.user_id} className="flex items-center justify-between p-4" data-testid={`att-row-${s.user_id}`}>
+                  <div>
+                    <p className="font-medium text-slate-900">{s.name}</p>
+                    <p className="text-xs text-slate-500">{s.email}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    {STATUSES.map(st => {
+                      const active = merged[s.user_id] === st.v;
+                      return (
+                        <button key={st.v} data-testid={`att-${s.user_id}-${st.v}`}
+                                onClick={() => setLocal({ ...local, [s.user_id]: st.v })}
+                                className={`text-xs font-semibold px-3 py-1.5 rounded-full transition ${active ? st.c : "bg-transparent text-slate-400 hover:bg-slate-100"}`}>
+                          {st.l}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+              {students.length === 0 && <p className="p-8 text-center text-sm text-slate-500">Select a class to begin.</p>}
+            </CardContent>
+          </Card>
+        </>
+      ) : (
+        <Card className="border-slate-200 shadow-none">
+          <CardContent className="p-0 divide-y divide-slate-100">
+            {records.length === 0 && <p className="p-8 text-center text-sm text-slate-500">No attendance records yet.</p>}
+            {records.map((r, i) => {
+              const st = STATUSES.find(x => x.v === r.status);
+              return (
+                <div key={i} className="flex items-center justify-between p-4">
+                  <div>
+                    <p className="font-medium text-slate-900">{r.date}</p>
+                    <p className="text-xs text-slate-500">Class {r.class_id}</p>
+                  </div>
+                  <Badge className={`${st?.c || ""} border-0`}>{st?.l || r.status}</Badge>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+Created
+/app/frontend/src/App.js
+
+import "@/App.css";
+import "@/index.css";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import AppShell from "@/components/AppShell";
+import Login from "@/pages/Login";
+import AuthCallback from "@/pages/AuthCallback";
+import Dashboard from "@/pages/Dashboard";
+import Courses from "@/pages/Courses";
+import CourseDetail from "@/pages/CourseDetail";
+import Assignments from "@/pages/Assignments";
+import QuizTake from "@/pages/QuizTake";
+import Gradebook from "@/pages/Gradebook";
+import Attendance from "@/pages/Attendance";
+import Announcements from "@/pages/Announcements";
+import Admin from "@/pages/Admin";
+
+function Protected({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/" replace />;
+  return <AppShell>{children}</AppShell>;
+}
+
+function AppRouter() {
+  const location = useLocation();
+  if (location.hash?.includes("session_id=")) return <AuthCallback />;
+
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+      <Route path="/courses" element={<Protected><Courses /></Protected>} />
+      <Route path="/courses/:id" element={<Protected><CourseDetail /></Protected>} />
+      <Route path="/assignments" element={<Protected><Assignments /></Protected>} />
+      <Route path="/quizzes/:id" element={<Protected><QuizTake /></Protected>} />
+      <Route path="/gradebook" element={<Protected><Gradebook /></Protected>} />
+      <Route path="/attendance" element={<Protected><Attendance /></Protected>} />
+      <Route path="/announcements" element={<Protected><Announcements /></Protected>} />
+      <Route path="/admin" element={<Protected><Admin /></Protected>} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+function Landing() {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (user) return <Navigate to="/dashboard" replace />;
+  return <Login />;
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+
+
+Created
+/app/frontend/src/pages/QuizTake.jsx
+
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
+
+export default function QuizTake() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [answers, setAnswers] = useState({});
+  const [result, setResult] = useState(null);
+
+  const { data: quizzes = [] } = useQuery({
+    queryKey: ["quizzes-all"], queryFn: async () => (await api.get("/quizzes")).data,
+  });
+  const quiz = quizzes.find(q => q.quiz_id === id);
+
+  const submit = useMutation({
+    mutationFn: async () => (await api.post(`/quizzes/${id}/attempt`, { answers })).data,
+    onSuccess: (d) => { setResult(d); toast.success(`Scored ${d.score}/${d.max_points}`); },
+  });
+
+  if (!quiz) return <p className="text-sm text-slate-500">Loadingâ€¦</p>;
+
+  const prevAttempt = quiz.my_attempt;
+  const showing = result || prevAttempt;
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6" data-testid="quiz-page">
+      <Link to="/assignments" className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-slate-900">
+        <ArrowLeft className="w-4 h-4" /> Back
+      </Link>
+
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.2em] text-amber-700 font-bold">Quiz</p>
+        <h1 className="font-heading text-4xl font-bold text-slate-900 tracking-tight">{quiz.title}</h1>
+        <p className="mt-2 text-slate-600 text-sm">
+          {quiz.questions.length} questions Â· Auto-graded
+        </p>
+      </div>
+
+      {showing && (
+        <Card className="border-emerald-200 bg-emerald-50 shadow-none">
+          <CardContent className="p-5">
+            <p className="text-xs uppercase tracking-wider font-semibold text-emerald-900">Your Result</p>
+            <p className="font-heading text-3xl font-bold text-emerald-900 mt-1" data-testid="quiz-result-score">
+              {showing.score} / {showing.max_points}
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-4">
+        {quiz.questions.map((q, i) => {
+          const detail = showing?.details?.find(d => d.q_id === q.q_id);
+          return (
+            <Card key={q.q_id} className="border-slate-200 shadow-none" data-testid={`question-${q.q_id}`}>
+              <CardContent className="p-5">
+                <p className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                  Question {i + 1} Â· {q.points} pt{q.points > 1 ? "s" : ""}
+                </p>
+                <h3 className="font-heading font-semibold text-slate-900 mt-2">{q.prompt}</h3>
+
+                <div className="mt-4">
+                  {q.type === "mcq" && (
+                    <RadioGroup value={answers[q.q_id] || detail?.given || ""}
+                                onValueChange={v => !showing && setAnswers({ ...answers, [q.q_id]: v })}>
+                      {q.options.map(o => (
+                        <div key={o} className="flex items-center gap-2 py-1">
+                          <RadioGroupItem value={o} id={`${q.q_id}-${o}`} data-testid={`opt-${q.q_id}-${o}`} />
+                          <Label htmlFor={`${q.q_id}-${o}`} className="cursor-pointer">{o}</Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  )}
+                  {q.type === "tf" && (
+                    <RadioGroup value={answers[q.q_id] || detail?.given || ""}
+                                onValueChange={v => !showing && setAnswers({ ...answers, [q.q_id]: v })}>
+                      {["true", "false"].map(o => (
+                        <div key={o} className="flex items-center gap-2 py-1">
+                          <RadioGroupItem value={o} id={`${q.q_id}-${o}`} data-testid={`tf-${q.q_id}-${o}`} />
+                          <Label htmlFor={`${q.q_id}-${o}`} className="cursor-pointer capitalize">{o}</Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  )}
+                  {q.type === "short" && (
+                    <Input data-testid={`short-${q.q_id}`} value={answers[q.q_id] || detail?.given || ""}
+                           disabled={!!showing}
+                           onChange={e => setAnswers({ ...answers, [q.q_id]: e.target.value })}
+                           placeholder="Your answer" />
+                  )}
+                </div>
+
+                {detail && (
+                  <div className={`mt-3 flex items-center gap-2 text-sm ${detail.is_correct ? "text-emerald-700" : "text-red-700"}`}>
+                    {detail.is_correct ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                    {detail.is_correct ? "Correct" : `Incorrect${detail.correct ? ` Â· Correct answer: ${detail.correct}` : ""}`}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {!showing && (
+        <div className="flex justify-end">
+          <Button size="lg" className="bg-slate-900 hover:bg-slate-800" data-testid="submit-quiz-btn"
+                  onClick={() => submit.mutate()} disabled={submit.isPending}>
+            {submit.isPending ? "Submittingâ€¦" : "Submit Quiz"}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
+
+Action: execute_bash({"command":"mkdir -p /app/memory && cat > /app/memory/test_credentials.md << 'EOF'\n# American School UAE LMS â€” Test Identities\n\nAuthentication: Emergent-managed Google OAuth (placeholder for Microsoft 365 Entra SSO in Phase 4).\n\n## Owner / Admin\n- **Email:** asmaa.moh8689@gmail.com\n- **Role:** admin\n- **How to log in:** Google OAuth via `Continue with school account`\n\n## Seeded App Users (visible via `View As` selector once admin is signed in)\n| Name | Email | Role | Class |\n|------|-------|------|-------|\n| Sarah Thompson | sarah.thompson@americanschooluae.ae | teacher | Grade 5-A, Grade 8-B |\n| Omar Ahmed | omar.ahmed@americanschooluae.ae | teacher | Grade 5-A |\n| Liam Hassan | liam.hassan@americanschooluae.ae | student | Grade 5-A |\n| Aisha Khan | aisha.khan@americanschooluae.ae | student | Grade 5-A |\n| Noah Reyes | noah.reyes@americanschooluae.ae | student | Grade 5-A |\n| Fatima Hassan | parent.hassan@americanschooluae.ae | parent | (child: Liam Hassan) |\n\n## RBAC\n- **admin**: full access; can `View As` any user (impersonate for demo/testing)\n- **teacher**: only their courses, their assigned classes, SpeedGrader\n- **student**: only their class's courses/assignments/quizzes\n- **parent**: read-only view of linked child's data\n\nDo not store passwords â€” Google OAuth is used for the owner. Seeded users are viewable via admin impersonation.\nEOF\necho \"credentials written\" && sudo supervisorctl restart backend"})
+Observation: credentials written
+backend: stopped
+backend: started
+Exit code: 0
+
+
+
+
+Action: execute_bash({"command":"sleep 5 && tail -n 40 /var/log/supervisor/backend.*.log"})
+Observation: ==> /var/log/supervisor/backend.err.log <==
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [46] using WatchFiles
+INFO:     Started server process [75]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [75]
+INFO:     Stopping reloader process [46]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [271] using WatchFiles
+INFO:     Started server process [309]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [309]
+WARNING:  WatchFiles detected changes in 'seed.py'. Reloading...
+INFO:     Started server process [1273]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [1273]
+INFO:     Stopping reloader process [271]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [1600] using WatchFiles
+INFO:     Started server process [1602]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+
+==> /var/log/supervisor/backend.out.log <==
+Exit code: 0
+
+
+
+
+Backend is up. Let me verify seed loaded and take a quick smoke screenshot of the landing page.
+
+Backend is up. Let me verify seed loaded and take a quick smoke screenshot of the landing page.
+Action: execute_bash({"command":"API_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d '=' -f2) && \\\ncurl -s \"$API_URL/api/\" && echo && \\\nmongosh --quiet --eval \"use('test_database'); print('users:', db.users.countDocuments({})); print('classes:', db.classes.countDocuments({})); print('courses:', db.courses.countDocuments({})); print('assignments:', db.assignments.countDocuments({})); print('quizzes:', db.quizzes.countDocuments({})); print('announcements:', db.announcements.countDocuments({}));\""})
+Observation: {"app":"American School UAE LMS","status":"ok"}
+users: 7
+classes: 3
+courses: 3
+assignments: 3
+quizzes: 2
+announcements: 2
+Exit code: 0
+
+
+
+
+Took a screenshot
+Frontend URL: https://learn-uae-1.preview.emergentagent.com/ Navigation attempt 1/3 (timeout=10000ms) SUCCESS: landing rendered title= American School UAE â€” Canvas Found 1 images Analyze the results and take appropriate action. Console logs saved: /root/.emergent/automation_output/20260822_013638/console_20260822_013638.log
+
+
+
+code
+Code
+
+preview
+Preview
+
+Publish
+Loading...
+Created
+/app/frontend/src/pages/Gradebook.jsx
+123456789101112131415161718192021
+import { api, API } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Download } from "lucide-react";
+
+function letterGrade(pct) {
+â€¦      </Card>
+    </div>
+  );
+}
+
+Aug 22, 05:36 AM
+
+Created
+/app/frontend/src/pages/Courses.jsx
+123456789101112131415161718192021
+import { api } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+
+export default function Courses() {
+  const { data: courses = [], isLoading } = useQuery({
+    queryKey: ["courses"], queryFn: async () => (await api.get("/courses")).data,
+  });
+â€¦}
+
+Aug 22, 05:36 AM
+
+Created
+/app/frontend/src/pages/Assignments.jsx
+123456789101112131415161718192021
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+â€¦          </CardContent></Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+Aug 22, 05:36 AM
+
+Created
+/app/frontend/src/pages/Attendance.jsx
+123456789101112131415161718192021
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/context/AuthContext";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
+â€¦
+Aug 22, 05:36 AM
+
+Created
+/app/frontend/src/App.js
+123456789101112131415161718192021
+import "@/App.css";
+import "@/index.css";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import AppShell from "@/components/AppShell";
+import Login from "@/pages/Login";
+import AuthCallback from "@/pages/AuthCallback";
+import Dashboard from "@/pages/Dashboard";
+import Courses from "@/pages/Courses";
+import CourseDetail from "@/pages/CourseDetail";
+â€¦}
+
+export default App;
+
+Aug 22, 05:36 AM
+
+Created
+/app/frontend/src/pages/QuizTake.jsx
+123456789101112131415161718192021
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { toast } from "sonner";
+â€¦    </div>
+  );
+}
+
+Aug 22, 05:36 AM
+
+$ mkdir -p /app/memory && cat > /app/memory/test_credentials.md << 'EOF' # American School UAE LMS â€” Test Identities Authentication: Emergent-managed Google OAuth (placeholder for Microsoft 365 Entra SSO in Phase 4). ## Owner / Admin - **Email:** asmaa.moh8689@gmail.com - **Role:** admin - **How to log in:** Google OAuth via `Continue with school account` ## Seeded App Users (visible via `View As` selector once admin is signed in) | Name | Email | Role | Class | |------|-------|------|-------| | Sarah Thompson | sarah.thompson@americanschooluae.ae | teacher | Grade 5-A, Grade 8-B | | Omar Ahmed | omar.ahmed@americanschooluae.ae | teacher | Grade 5-A | | Liam Hassan | liam.hassan@americanschooluae.ae | student | Grade 5-A | | Aisha Khan | aisha.khan@americanschooluae.ae | student | Grade 5-A | | Noah Reyes | noah.reyes@americanschooluae.ae | student | Grade 5-A | | Fatima Hassan | parent.hassan@americanschooluae.ae | parent | (child: Liam Hassan) | ## RBAC - **admin**: full access; can `View As` any user (impersonate for demo/testing) - **teacher**: only their courses, their assigned classes, SpeedGrader - **student**: only their class's courses/assignments/quizzes - **parent**: read-only view of linked child's data Do not store passwords â€” Google OAuth is used for the owner. Seeded users are viewable via admin impersonation. EOF echo "credentials written" && sudo supervisorctl restart backend
+credentials written backend: stopped backend: started Exit code: 0
+
+Aug 22, 05:36 AM
+
+$ sleep 5 && tail -n 40 /var/log/supervisor/backend.*.log
+==> /var/log/supervisor/backend.err.log <== INFO: Will watch for changes in these directories: ['/app/backend'] INFO: Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit) INFO: Started reloader process [46] using WatchFiles INFO: Started server process [75] INFO: Waiting for application startup. INFO: Application startup complete. INFO: Shutting down INFO: Waiting for application shutdown. INFO: Application shutdown complete. INFO: Finished server process [75] INFO: Stopping reloader process [46] INFO: Will watch for changes in these directories: ['/app/backend'] INFO: Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit) INFO: Started reloader process [271] using WatchFiles INFO: Started server process [309] INFO: Waiting for application startup. INFO: Application startup complete. WARNING: WatchFiles detected changes in 'server.py'. Reloading... INFO: Shutting down INFO: Waiting for application shutdown. INFO: Application shutdown complete. INFO: Finished server process [309] WARNING: WatchFiles detected changes in 'seed.py'. Reloading... INFO: Started server process [1273] INFO: Waiting for application startup. INFO: Application startup complete. INFO: Shutting down INFO: Waiting for application shutdown. INFO: Application shutdown complete. INFO: Finished server process [1273] INFO: Stopping reloader process [271] INFO: Will watch for changes in these directories: ['/app/backend'] INFO: Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit) INFO: Started reloader process [1600] using WatchFiles INFO: Started server process [1602] INFO: Waiting for application startup. INFO: Application startup complete.
+
+==> /var/log/supervisor/backend.out.log <== Exit code: 0
+
+Aug 22, 05:36 AM
+
+Backend is up. Let me verify seed loaded and take a quick smoke screenshot of the landing page.
+
+$ API_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d '=' -f2) && \ curl -s "$API_URL/api/" && echo && \ mongosh --quiet --eval "use('test_database'); print('users:', db.users.countDocuments({})); print('classes:', db.classes.countDocuments({})); print('courses:', db.courses.countDocuments({})); print('assignments:', db.assignments.countDocuments({})); print('quizzes:', db.quizzes.countDocuments({})); print('announcements:', db.announcements.countDocuments({}));"
+{"app":"American School UAE LMS","status":"ok"} users: 7 classes: 3 courses: 3 assignments: 3 quizzes: 2 announcements: 2 Exit code: 0
+
+Aug 22, 05:36 AM
+
+Took a screenshot
+Frontend URL: https://learn-uae-1.preview.emergentagent.com/ Navigation attempt 1/3 (timeout=10000ms) SUCCESS: landing rendered title= American School UAE â€” Canvas Found 1 images Analyze the results and take appropriate action. Console logs saved: /root/.emergent/automation_output/20260822_013638/console_20260822_013638.log
+
+Screenshots
+Image 1
+Aug 22, 05:36 AM
+
+Landing looks great. Let me save the auth testing playbook and run testing agent for full validation.
+
+Delegated to Testing Agent
+No testing was performed. I only began the environment exploration phase (viewed /app/memory/test_credentials.md, frontend/.env, backend/.env, and confirmed /app/test_reports directory exists but is empty). I did not view /app/backend/server.py, /app/backend/seed.py, or any frontend files. Note: the referenced /app/auth_testing.md file does NOT exist in this workspace â€” this is a blocker that should be flagged, since the review request specifically depends on that document for seeding a session token in MongoDB. No backend endpoints or frontend flows were tested in this iteration. Please re-invoke T1 with more time to complete Phase 1 setup, seed a session token per the intended auth_testing.md procedure (or provide that file), and run the requested backend + frontend checks.
+
+
+
+
+Created
+/app/auth_testing.md
+
+
+# Auth-Gated App Testing Playbook â€” American School UAE LMS
+
+Emergent Google OAuth flow. To test protected pages without going through real Google login, seed a session_token cookie for the admin owner (asmaa.moh8689@gmail.com):
+
+```
+mongosh --eval "
+use('test_database');
+var sessionToken = 'test_session_' + Date.now();
+db.sessions.insertOne({
+  session_token: sessionToken,
+  user_id: 'user_owner_admin',
+  expires_at: new Date(Date.now() + 7*24*60*60*1000).toISOString(),
+  created_at: new Date().toISOString()
+});
+print('Session token: ' + sessionToken);
+"
+```
+
+Then set cookie in browser and navigate:
+
+```python
+await page.context.add_cookies([{
+    "name": "session_token", "value": "YOUR_SESSION_TOKEN",
+    "domain": "learn-uae-1.preview.emergentagent.com", "path": "/",
+    "httpOnly": True, "secure": True, "sameSite": "None"
+}])
+await page.goto("https://learn-uae-1.preview.emergentagent.com/dashboard")
+```
+
+For backend testing, pass session_token as either cookie OR `Authorization: Bearer <token>` header.
+
+## Role-preview flow (admin only)
+Admin can call `POST /api/auth/view-as` with `{"user_id": "<seeded_user_id>"}` to preview any seeded user's dashboard.
+Set `{"user_id": null}` (or "self") to revert to admin.
+
+## Seeded IDs
+- user_owner_admin (admin, asmaa.moh8689@gmail.com)
+- user_tch_thompson (teacher)
+- user_std_liam (student, Grade 5-A)
+- user_par_hassan (parent â€” linked to liam)
+- cls_g5a, cls_g8b (classes)
+- crs_math_g5, crs_eng_g5, crs_sci_g5 (courses)
+- asg_math_1, asg_eng_1, asg_sci_1 (assignments)
+- qz_math_1, qz_sci_1 (quizzes)
+
+
+
+
+
